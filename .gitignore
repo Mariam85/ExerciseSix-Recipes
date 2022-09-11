@@ -2,3 +2,4 @@
 *\obj
 *.tmp
 *.tmp_proj
+*.vs
