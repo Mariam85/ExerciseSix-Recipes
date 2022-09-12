@@ -1,7 +1,19 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder();
+builder.Services.AddControllers();
+builder.Services.AddSwaggerGen();
+builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddAntiforgery(options => options.HeaderName = "X-XSRF-TOKEN");
 builder.Services.AddCors(options =>
 {
@@ -14,10 +26,64 @@ builder.Services.AddCors(options =>
                                 .AllowCredentials();
                       });
 });
+builder.Services.AddAuthentication(options =>
+{
+  options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+  options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+  options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+}).AddJwtBearer(o =>
+{
+  o.TokenValidationParameters = new TokenValidationParameters
+  {
+    ValidateIssuer = true,
+    ValidateAudience = true,
+    ValidateLifetime = false,
+    ValidateIssuerSigningKey = true,
+    ValidIssuer = builder.Configuration["Jwt:Issuer"],
+    ValidAudience = builder.Configuration["Jwt:Audience"],
+    IssuerSigningKey = new SymmetricSecurityKey
+    (Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
+    };
+});
+builder.Services.AddAuthorization();
 
 WebApplication app = builder.Build();
 app.Urls.Add(builder.Configuration["Server"]);
+app.UseAuthorization();
+app.UseAuthentication();
 app.UseCors("localhostOnly");
+
+// Creating a token for the user.
+app.MapPost("/createToken",
+[AllowAnonymous] (User user) =>
+{
+  var key = Encoding.ASCII.GetBytes
+  var audience = builder.Configuration["Jwt:Audience"];
+  var issuer = builder.Configuration["Jwt:Issuer"];
+  (builder.Configuration["Jwt:Key"]);
+  var tokenDescriptor = new SecurityTokenDescriptor
+  {
+  Subject = new ClaimsIdentity(new[]
+  {
+	  new Claim("Id", Guid.NewGuid().ToString()),
+	  new Claim(JwtRegisteredClaimNames.Sub, user.UserName),
+	  new Claim(JwtRegisteredClaimNames.Email, user.UserName),
+	  new Claim(JwtRegisteredClaimNames.Jti,
+	  Guid.NewGuid().ToString())
+	  }),
+  Expires = DateTime.UtcNow.AddMinutes(3),
+  Issuer = issuer,
+  Audience = audience,
+  SigningCredentials = new SigningCredentials
+  (new SymmetricSecurityKey(key),
+  SecurityAlgorithms.HmacSha512Signature)
+  };
+  var tokenHandler = new JwtSecurityTokenHandler();
+  var token = tokenHandler.CreateToken(tokenDescriptor);
+  var jwtToken = tokenHandler.WriteToken(token);
+  var stringToken = tokenHandler.WriteToken(token);
+  return Results.Ok(stringToken);
+});
 
 // Generating a token.
 app.MapGet("/antiforgery", (IAntiforgery antiforgery, HttpContext context) =>
