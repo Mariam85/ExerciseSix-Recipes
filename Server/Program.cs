@@ -9,10 +9,57 @@ using Microsoft.OpenApi.Models;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using System.Security.Cryptography;
+using System.ComponentModel;
 
 var builder = WebApplication.CreateBuilder();
+var securityScheme = new OpenApiSecurityScheme()
+{ 
+    Name = "Authorisation",
+    Type = SecuritySchemeType.ApiKey,
+    Scheme="Bearer",
+    BearerFormat = "JWT",
+    In =ParameterLocation.Header,
+    Description="JWT authentication for MinimalAPI"
+};
+
+var securityRequirements = new OpenApiSecurityRequirement()
+{
+    {
+        new OpenApiSecurityScheme
+        {
+            Reference = new OpenApiReference
+            {
+                Type= ReferenceType.SecurityScheme,
+                Id="Bearer"
+            }
+        },
+        new string[] {}
+    }
+};
+
+var contactInfo = new OpenApiContact()
+{
+    Name = "Mariam Mostafa",
+    Email="mariammostafa.493@gmail.com",
+    Url = new Uri("https://github.com/Mariam85")
+};
+
+var license = new OpenApiLicense()
+{ 
+   Name = "Free License"
+};
+
+var info = new OpenApiInfo()
+{
+    Version="V1",
+    Title="Recipes Api with JWT Authentication",
+    Description="Recipes Api with JWT Authentication",
+    Contact= contactInfo,
+    License= license
+};
+
 builder.Services.AddControllers();
-builder.Services.AddSwaggerGen();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddAntiforgery(options => options.HeaderName = "X-XSRF-TOKEN");
 builder.Services.AddCors(options =>
@@ -35,7 +82,7 @@ builder.Services.AddAuthentication(options =>
 {
   o.TokenValidationParameters = new TokenValidationParameters
   {
-    ValidateIssuer = true,
+    ValidateIssuer = true, 
     ValidateAudience = true,
     ValidateLifetime = false,
     ValidateIssuerSigningKey = true,
@@ -46,43 +93,102 @@ builder.Services.AddAuthentication(options =>
     };
 });
 builder.Services.AddAuthorization();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1",info);
+    options.AddSecurityDefinition("Bearer",securityScheme);
+    options.AddSecurityRequirement(securityRequirements);
+});
 
 WebApplication app = builder.Build();
 app.Urls.Add(builder.Configuration["Server"]);
-app.UseAuthorization();
 app.UseAuthentication();
+app.UseAuthorization();
 app.UseCors("localhostOnly");
+app.UseSwagger();
+app.UseSwaggerUI();
 
-// Creating a token for the user.
-app.MapPost("/createToken",
-[AllowAnonymous] (User user) =>
+
+// Logining in endpoint.
+app.MapPost("/account/login", [AllowAnonymous] async (string userName,string password) =>
 {
-  var key = Encoding.ASCII.GetBytes
-  var audience = builder.Configuration["Jwt:Audience"];
-  var issuer = builder.Configuration["Jwt:Issuer"];
-  (builder.Configuration["Jwt:Key"]);
-  var tokenDescriptor = new SecurityTokenDescriptor
-  {
-  Subject = new ClaimsIdentity(new[]
-  {
-	  new Claim("Id", Guid.NewGuid().ToString()),
-	  new Claim(JwtRegisteredClaimNames.Sub, user.UserName),
-	  new Claim(JwtRegisteredClaimNames.Email, user.UserName),
-	  new Claim(JwtRegisteredClaimNames.Jti,
-	  Guid.NewGuid().ToString())
-	  }),
-  Expires = DateTime.UtcNow.AddMinutes(3),
-  Issuer = issuer,
-  Audience = audience,
-  SigningCredentials = new SigningCredentials
-  (new SymmetricSecurityKey(key),
-  SecurityAlgorithms.HmacSha512Signature)
-  };
-  var tokenHandler = new JwtSecurityTokenHandler();
-  var token = tokenHandler.CreateToken(tokenDescriptor);
-  var jwtToken = tokenHandler.WriteToken(token);
-  var stringToken = tokenHandler.WriteToken(token);
-  return Results.Ok(stringToken);
+    // Checking if the user exists.
+    var usersList=await ReadUsers();
+    User? foundUser=usersList.Find((u) => u.UserName == userName);
+    if(foundUser == null)
+    {
+        return Results.BadRequest("This user does not exist.");
+    }
+
+    // Verifying the password.
+    using (var hmac = new HMACSHA512(foundUser.PasswordSalt))
+    {
+        var computedHash = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(password));
+        if(!computedHash.SequenceEqual(foundUser.PasswordHash))
+        {
+            return Results.BadRequest("The password entered is incorrect.");
+        }
+    }
+
+    // Creating the token.
+    var secureKey = Encoding.UTF8.GetBytes(builder.Configuration["JWT:Key"]);
+    var issuer = builder.Configuration["Jwt:Issuer"];
+    var audience = builder.Configuration["Jwt:Audience"];
+    var securityKey= new SymmetricSecurityKey(secureKey);
+    var credentials = new SigningCredentials(securityKey,SecurityAlgorithms.HmacSha512);
+   
+    var jwtTokenHandler=new JwtSecurityTokenHandler();
+    var tokenDescriptor=new SecurityTokenDescriptor
+    {
+        Subject = new System.Security.Claims.ClaimsIdentity(new[]
+        {
+            new Claim("Id",foundUser.Id.ToString()),  
+            new Claim(JwtRegisteredClaimNames.Sub,foundUser.UserName),
+            new Claim(JwtRegisteredClaimNames.Email,foundUser.UserName),
+            new Claim(JwtRegisteredClaimNames.Jti,Guid.NewGuid().ToString())
+        }),
+        Expires = DateTime.Now.AddHours(2),
+        Audience=audience,
+        Issuer=issuer,
+        SigningCredentials=credentials
+        };
+    var token=jwtTokenHandler.CreateToken(tokenDescriptor);
+    var jwtToken=jwtTokenHandler.WriteToken(token);
+    return Results.Ok(jwtToken);
+    
+});
+
+// Signing up endpoint.
+app.MapPost("/account/signup", [AllowAnonymous] async (string userName,string password) =>
+{
+    var usersList=await ReadUsers();
+    if (password.IsNullOrEmpty() || password.Length<8)
+    {
+       return Results.BadRequest("Password is invalid");
+    }
+    else if(usersList.Find((x) => x.UserName == userName)!=null)
+    {
+        return Results.BadRequest("Username already exists");
+    }
+    else if(userName.IsNullOrEmpty())
+    {
+        return Results.BadRequest("Username is invalid");
+    }
+    else
+    { 
+        byte[] passwordSalt={};
+        byte[] passwordHash={};
+        using (var hmac= new HMACSHA512())
+        {
+          passwordSalt = hmac.Key;
+          passwordHash = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(password));
+        }
+        User user=new(userName,passwordSalt,passwordHash);
+        usersList.Add(user);
+        UpdateUsers(usersList);
+        return Results.Ok(user);
+    }
 });
 
 // Generating a token.
@@ -95,7 +201,7 @@ app.MapGet("/antiforgery", (IAntiforgery antiforgery, HttpContext context) =>
 // Adding a recipe.
 app.MapPost("recipes/add-recipe", async (Recipe recipe, HttpContext context, IAntiforgery antiforgery) =>
 {
-    try
+    try 
     {
         await antiforgery.ValidateRequestAsync(context);
         List<Recipe> recipes = await ReadFile();
@@ -357,6 +463,17 @@ static async Task<List<Recipe>> ReadFile()
     return menu;
 }
 
+// Reading the users json file content.
+static async Task<List<User>> ReadUsers()
+{
+    string sCurrentDirectory = AppDomain.CurrentDomain.BaseDirectory;
+    string sFile = System.IO.Path.Combine(Environment.CurrentDirectory, "Users.json");
+    string sFilePath = Path.GetFullPath(sFile);
+    string jsonString = await File.ReadAllTextAsync(sFilePath);
+    List<User>? users = System.Text.Json.JsonSerializer.Deserialize<List<User>>(jsonString);
+    return users;
+}
+
 // Reading the categories json file content.
 static async Task<List<Categories>> ReadCategories()
 {
@@ -386,4 +503,14 @@ static async void UpdateCategories(List<Categories> newRecipes)
     string sFilePath = Path.GetFullPath(sFile);
     var options = new JsonSerializerOptions { WriteIndented = true };
     File.WriteAllText(sFilePath, System.Text.Json.JsonSerializer.Serialize(newRecipes));
+}
+
+// Updating the users json file content.
+static async void UpdateUsers(List<User> usersList)
+{
+    string sCurrentDirectory = AppDomain.CurrentDomain.BaseDirectory;
+    string sFile = System.IO.Path.Combine(Environment.CurrentDirectory, "Users.json");
+    string sFilePath = Path.GetFullPath(sFile);
+    var options = new JsonSerializerOptions { WriteIndented = true };
+    File.WriteAllText(sFilePath, System.Text.Json.JsonSerializer.Serialize(usersList));
 }
