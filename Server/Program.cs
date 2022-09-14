@@ -65,7 +65,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddAntiforgery(options => options.HeaderName = "X-XSRF-TOKEN");
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy(name: "localhostOnly",
+    options.AddPolicy(name: "client",
                       policy =>
                       {
                           policy.WithOrigins(builder.Configuration["Client"])
@@ -104,9 +104,9 @@ builder.Services.AddSwaggerGen(options =>
 
 WebApplication app = builder.Build();
 app.Urls.Add(builder.Configuration["Server"]);
+app.UseCors("client");
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseCors("localhostOnly");
 app.UseSwagger();
 app.UseSwaggerUI();
 
@@ -154,10 +154,11 @@ app.MapPost("/account/login", [AllowAnonymous] async (string userName,string pas
         Audience=audience,
         Issuer=issuer,
         SigningCredentials=credentials
-        };
+    };
     var token=jwtTokenHandler.CreateToken(tokenDescriptor);
     var jwtToken=jwtTokenHandler.WriteToken(token);
-    return Results.Ok(jwtToken);
+    return Results.Ok(new{Token = jwtToken});
+    
     
 });
 
@@ -428,7 +429,7 @@ app.MapDelete("recipes/remove-category/{category}", async (string category, Http
 });
 
 // Getting the json file content to display it.
-app.MapGet("recipes", async (HttpContext context, IAntiforgery antiforgery) =>
+app.MapGet("recipes",async (HttpContext context, IAntiforgery antiforgery) =>
 {
     try
     {
