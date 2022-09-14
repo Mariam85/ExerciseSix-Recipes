@@ -11,6 +11,7 @@ using System.Security.Claims;
 using System.Text;
 using System.Security.Cryptography;
 using System.ComponentModel;
+using Newtonsoft.Json;
 
 var builder = WebApplication.CreateBuilder();
 var securityScheme = new OpenApiSecurityScheme()
@@ -109,12 +110,13 @@ app.UseCors("localhostOnly");
 app.UseSwagger();
 app.UseSwaggerUI();
 
-
 // Logining in endpoint.
 app.MapPost("/account/login", [AllowAnonymous] async (string userName,string password) =>
 {
     // Checking if the user exists.
-    var usersList=await ReadUsers();
+    string jsonContent = await File.ReadAllTextAsync("Users.json");
+    if (jsonContent == null) { return Results.BadRequest(); }
+    var usersList = JsonConvert.DeserializeObject<List<User>>(jsonContent)!;
     User? foundUser=usersList.Find((u) => u.UserName == userName);
     if(foundUser == null)
     {
@@ -162,7 +164,10 @@ app.MapPost("/account/login", [AllowAnonymous] async (string userName,string pas
 // Signing up endpoint.
 app.MapPost("/account/signup", [AllowAnonymous] async (string userName,string password) =>
 {
-    var usersList=await ReadUsers();
+    string jsonContent = await File.ReadAllTextAsync("Users.json");
+    if (jsonContent == null) { return Results.BadRequest(); }
+    var usersList = JsonConvert.DeserializeObject<List<User>>(jsonContent)!;
+
     if (password.IsNullOrEmpty() || password.Length<8)
     {
        return Results.BadRequest("Password is invalid");
@@ -189,6 +194,7 @@ app.MapPost("/account/signup", [AllowAnonymous] async (string userName,string pa
         UpdateUsers(usersList);
         return Results.Ok(user);
     }
+    
 });
 
 // Generating a token.
