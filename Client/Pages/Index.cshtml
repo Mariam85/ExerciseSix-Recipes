@@ -623,8 +623,9 @@
             let response = await fetch('@Configuration["Server"]' + 'recipes/add-recipe/', {
                 method: 'POST',
                 headers: {
+                    'Content-Type': 'application/json',
                     "X-XSRF-TOKEN": antiforgery,
-                    "Content-Type": "application/json"
+                    'Authorization': 'Bearer ' + localStorage.getItem("token"),
                 },
                 body: JSON.stringify({
                     id: recipe.id,
@@ -694,8 +695,9 @@
             let response = await fetch(url, {
                 method: 'PUT',
                 headers: {
+                    'Content-Type': 'application/json',
                     "X-XSRF-TOKEN": antiforgery,
-                    "Content-Type": "application/json"
+                    'Authorization': 'Bearer ' + localStorage.getItem("token"),
                 },
                 body: JSON.stringify({
                     id: recipe.id,
@@ -730,10 +732,11 @@
             let oldRecipe = await fetch(url, {
                 method: 'GET',
                 headers: {
+                    'Content-Type': 'application/json',
                     "X-XSRF-TOKEN": antiforgery,
-                    "Content-Type": "application/json"
+                    'Authorization': 'Bearer ' + localStorage.getItem("token"),
                 },
-                credentials: 'include',
+                credentials: 'include'
             });
             oldRecipe.text().then(function (text) {
                 recipeDetails = JSON.parse(text);
@@ -787,8 +790,9 @@
         let response = await fetch('@Configuration["Server"]' + 'recipes/delete-recipe/' + recipe, {
             method: 'DELETE',
             headers: {
+                'Content-Type': 'application/json',
                 "X-XSRF-TOKEN": antiforgery,
-                "Content-Type": "application/json"
+                'Authorization': 'Bearer ' + localStorage.getItem("token"),
             },
             credentials: 'include'
         })
@@ -818,8 +822,9 @@
             {
                 method: 'DELETE',
                 headers: {
+                    'Content-Type': 'application/json',
                     "X-XSRF-TOKEN": antiforgery,
-                    "Content-Type": "application/json"
+                    'Authorization': 'Bearer ' + localStorage.getItem("token"),
                 },
                 credentials: 'include'
             })
@@ -858,8 +863,9 @@
             let response = await fetch('@Configuration["Server"]' + 'recipes/add-category/', {
                 method: 'POST',
                 headers: {
+                    'Content-Type': 'application/json',
                     "X-XSRF-TOKEN": antiforgery,
-                    "Content-Type": "application/json"
+                    'Authorization': 'Bearer ' + localStorage.getItem("token"),
                 },
                 body: JSON.stringify({
                     Name: category
@@ -912,8 +918,9 @@
             let response = await fetch(url, {
                 method: 'PUT',
                 headers: {
+                    'Content-Type': 'application/json',
                     "X-XSRF-TOKEN": antiforgery,
-                    "Content-Type": "application/json"
+                    'Authorization': 'Bearer ' + localStorage.getItem("token"),
                 },
                 credentials: 'include'
             });

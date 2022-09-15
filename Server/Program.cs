@@ -211,7 +211,7 @@ app.MapGet("/antiforgery", (IAntiforgery antiforgery, HttpContext context) =>
 });
 
 // Adding a recipe.
-app.MapPost("recipes/add-recipe", async (Recipe recipe, HttpContext context, IAntiforgery antiforgery) =>
+app.MapPost("recipes/add-recipe",[Authorize] async (Recipe recipe, HttpContext context, IAntiforgery antiforgery) =>
 {
     try 
     {
@@ -232,7 +232,7 @@ app.MapPost("recipes/add-recipe", async (Recipe recipe, HttpContext context, IAn
 });
 
 // Editing a recipe.
-app.MapPut("recipes/edit-recipe/{id}", async (Guid id, Recipe editedRecipe, HttpContext context, IAntiforgery antiforgery) =>
+app.MapPut("recipes/edit-recipe/{id}",[Authorize] async (Guid id, Recipe editedRecipe, HttpContext context, IAntiforgery antiforgery) =>
 {
     try
     {
@@ -255,7 +255,7 @@ app.MapPut("recipes/edit-recipe/{id}", async (Guid id, Recipe editedRecipe, Http
 });
 
 // Listing a recipe.
-app.MapGet("recipes/list-recipe/{id}", async (Guid id, HttpContext context, IAntiforgery antiforgery) =>
+app.MapGet("recipes/list-recipe/{id}",[Authorize] async (Guid id, HttpContext context, IAntiforgery antiforgery) =>
 {
     try
     {
@@ -274,7 +274,7 @@ app.MapGet("recipes/list-recipe/{id}", async (Guid id, HttpContext context, IAnt
 });
 
 // Deleting a recipe.
-app.MapDelete("recipes/delete-recipe/{id}", async (Guid id, HttpContext context, IAntiforgery antiforgery) =>
+app.MapDelete("recipes/delete-recipe/{id}",[Authorize] async (Guid id, HttpContext context, IAntiforgery antiforgery) =>
 {
     try
     {
@@ -298,7 +298,7 @@ app.MapDelete("recipes/delete-recipe/{id}", async (Guid id, HttpContext context,
 });
 
 // Adding a category.
-app.MapPost("recipes/add-category", async (Categories category, HttpContext context, IAntiforgery antiforgery) =>
+app.MapPost("recipes/add-category",[Authorize] async (Categories category, HttpContext context, IAntiforgery antiforgery) =>
 {
     try
     {
@@ -330,7 +330,7 @@ app.MapPost("recipes/add-category", async (Categories category, HttpContext cont
 });
 
 // Renaming a category.
-app.MapPut("categories/rename-category", async (string oldName, string newName, HttpContext context, IAntiforgery antiforgery) =>
+app.MapPut("categories/rename-category",[Authorize] async (string oldName, string newName, HttpContext context, IAntiforgery antiforgery) =>
 {
     try
     {
@@ -386,7 +386,7 @@ app.MapPut("categories/rename-category", async (string oldName, string newName, 
 });
 
 // Removing a category.
-app.MapDelete("recipes/remove-category/{category}", async (string category, HttpContext context, IAntiforgery antiforgery) =>
+app.MapDelete("recipes/remove-category/{category}",[Authorize] async (string category, HttpContext context, IAntiforgery antiforgery) =>
 {
     try
     {
