@@ -476,20 +476,21 @@
         Alpine.store('cat', getCategories());
     });
 
-    async function getToken() {
-        await fetch('@Configuration["Server"]' + "antiforgery", {
-            method: "GET",
-            credentials: 'include'
-        });
-    }
-
-    async function getPageToken() {
-        const xsrfToken = document.cookie
-            .split("; ")
-            .find(row => row.startsWith("XSRF-TOKEN="))
-            .split("=")[1];
-        return xsrfToken;
-    }
+	async function getToken() {
+        let response = await fetch('@Configuration["Server"]' + 'antiforgery', {
+			method: "GET",
+			headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem("token"),
+			},
+			credentials: 'include'
+		});
+		if (response.ok) {
+			return document.cookie
+				.split("; ")
+				.find(row => row.startsWith("XSRF-TOKEN="))
+				.split("=")[1];
+		}
+	}
 
     function switchNavLogin(login) {
         if (login) {
@@ -558,10 +559,10 @@
         return false;
         }
         var response = await fetch('@Configuration["Server"]' + 'account/login?username=' + username + '&password=' + password, {
-                method: 'POST',
+            method: 'POST',
+            credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ' + localStorage.getItem("token"),
                 }
             })
         if (response.status != 200) {
@@ -618,7 +619,7 @@
             let instructions = recipe.instructions.replaceAll('\n', '').split('• ');
             instructions.shift();
 
-            const antiforgery = await getPageToken();
+            const antiforgery = await getToken();
             let response = await fetch('@Configuration["Server"]' + 'recipes/add-recipe/', {
                 method: 'POST',
                 headers: {
@@ -688,7 +689,7 @@
             let instructions = recipe.instructions.replaceAll('\n', '').split('• ');
             instructions.shift();
 
-            const antiforgery = await getPageToken();
+            const antiforgery = await getToken();
             let url = '@Configuration["Server"]' + 'recipes/edit-recipe/' + recipe.id;
             let response = await fetch(url, {
                 method: 'PUT',
@@ -724,7 +725,7 @@
             }
         }
         if (resetRecipe) {
-            const antiforgery = await getPageToken();
+            const antiforgery = await getToken();
             let url = '@Configuration["Server"]' + 'recipes/list-recipe/' + recipe.id;
             let oldRecipe = await fetch(url, {
                 method: 'GET',
@@ -748,29 +749,29 @@
 
     // Listing recipes.
     async function getRecipes() {
-        const antiforgery = await getPageToken();
+        const antiforgery = await getToken();
         return await fetch('@Configuration["Server"]' + 'recipes', {
-            method: 'GET',
             headers: {
+                'Content-Type': 'application/json',
                 "X-XSRF-TOKEN": antiforgery,
-                "Content-Type": "application/json",
+                'Authorization': 'Bearer ' + localStorage.getItem("token"),
             },
             credentials: 'include'
-        })
-            .then(res => res.json())
+        }).then(res => res.json())
             .then(data => {
-                return data
+               return data
             })
     }
 
+
     // Listing categories.
     async function getCategories() {
-        const antiforgery = await getPageToken();
+        const antiforgery = await getToken();
         return await fetch('@Configuration["Server"]' + 'categories', {
-            method: 'GET',
             headers: {
+                'Content-Type': 'application/json',
                 "X-XSRF-TOKEN": antiforgery,
-                "Content-Type": "application/json",
+                'Authorization': 'Bearer ' + localStorage.getItem("token"),
             },
             credentials: 'include'
         })
@@ -782,7 +783,7 @@
 
     // Deleting a recipe.
     async function deleteRecipe(recipe) {
-        const antiforgery = await getPageToken();
+        const antiforgery = await getToken();
         let response = await fetch('@Configuration["Server"]' + 'recipes/delete-recipe/' + recipe, {
             method: 'DELETE',
             headers: {
@@ -811,7 +812,7 @@
 
     // Deleting a category.
     async function removeCategory(oldCategory) {
-        const antiforgery = await getPageToken();
+        const antiforgery = await getToken();
         let url = '@Configuration["Server"]' + 'recipes/remove-category/' + oldCategory;
         let response = await fetch(url,
             {
@@ -853,7 +854,7 @@
             })
         }
         else {
-            const antiforgery = await getPageToken();
+            const antiforgery = await getToken();
             let response = await fetch('@Configuration["Server"]' + 'recipes/add-category/', {
                 method: 'POST',
                 headers: {
@@ -906,7 +907,7 @@
             })
         }
         else {
-            const antiforgery = await getPageToken();
+            const antiforgery = await getToken();
             let url = '@Configuration["Server"]' + 'categories/rename-category?oldName=' + name + '&newName=' + newName;
             let response = await fetch(url, {
                 method: 'PUT',

@@ -59,10 +59,6 @@ var info = new OpenApiInfo()
     Contact= contactInfo,
     License= license
 };
-
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddAntiforgery(options => options.HeaderName = "X-XSRF-TOKEN");
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(name: "client",
@@ -74,6 +70,11 @@ builder.Services.AddCors(options =>
                                 .AllowCredentials();
                       });
 });
+builder.Services.AddAntiforgery(options => options.HeaderName = "X-XSRF-TOKEN");
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+
+
 builder.Services.AddAuthentication(options =>
 {
   options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -103,15 +104,19 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 WebApplication app = builder.Build();
-app.Urls.Add(builder.Configuration["Server"]);
+//app.Urls.Add(builder.Configuration["Server"]);
+//app.UseAuthentication();
+//app.UseAuthorization();
+
+app.UseSwagger();
+app.UseSwaggerUI();
+app.UseHttpsRedirection();
 app.UseCors("client");
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseSwagger();
-app.UseSwaggerUI();
 
 // Logining in endpoint.
-app.MapPost("/account/login", [AllowAnonymous] async (string userName,string password) =>
+app.MapPost("/account/login", [AllowAnonymous] async (HttpContext contex,IAntiforgery antiforgery,string userName,string password) =>
 {
     // Checking if the user exists.
     string jsonContent = await File.ReadAllTextAsync("Users.json");
@@ -429,7 +434,7 @@ app.MapDelete("recipes/remove-category/{category}", async (string category, Http
 });
 
 // Getting the json file content to display it.
-app.MapGet("recipes",async (HttpContext context, IAntiforgery antiforgery) =>
+app.MapGet("recipes",[Authorize]async (HttpContext context, IAntiforgery antiforgery) =>
 {
     try
     {
@@ -444,7 +449,7 @@ app.MapGet("recipes",async (HttpContext context, IAntiforgery antiforgery) =>
 });
 
 // Getting the json file content of the categories.
-app.MapGet("categories", async (HttpContext context, IAntiforgery antiforgery) =>
+app.MapGet("categories",[Authorize]async (HttpContext context, IAntiforgery antiforgery) =>
 {
     try
     {
