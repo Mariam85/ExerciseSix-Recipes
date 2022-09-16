@@ -12,6 +12,7 @@ using System.Text;
 using System.Security.Cryptography;
 using System.ComponentModel;
 using Newtonsoft.Json;
+using Microsoft.AspNetCore.SignalR;
 
 var builder = WebApplication.CreateBuilder();
 var securityScheme = new OpenApiSecurityScheme()
@@ -59,6 +60,7 @@ var info = new OpenApiInfo()
     Contact= contactInfo,
     License= license
 };
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(name: "client",
@@ -67,6 +69,7 @@ builder.Services.AddCors(options =>
                           policy.WithOrigins(builder.Configuration["Client"])
                                 .AllowAnyHeader()
                                 .AllowAnyMethod()
+                                .WithExposedHeaders("IS-TOKEN-EXPIRED")
                                 .AllowCredentials();
                       });
 });
@@ -82,6 +85,7 @@ builder.Services.AddAuthentication(options =>
   options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
 }).AddJwtBearer(o =>
 {
+  o.SaveToken=true;
   o.TokenValidationParameters = new TokenValidationParameters
   {
     ValidateIssuer = true, 
@@ -91,8 +95,20 @@ builder.Services.AddAuthentication(options =>
     ValidIssuer = builder.Configuration["Jwt:Issuer"],
     ValidAudience = builder.Configuration["Jwt:Audience"],
     IssuerSigningKey = new SymmetricSecurityKey
-    (Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
-    };
+    (Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"])),
+    ClockSkew=TimeSpan.Zero
+   };
+   o.Events = new JwtBearerEvents
+	{
+		OnAuthenticationFailed = context =>
+		{
+			if (context.Exception.GetType() == typeof(SecurityTokenExpiredException))
+			{
+				context.Response.Headers.Add("IS-TOKEN-EXPIRED", "true");
+			}
+			return Task.CompletedTask;
+		}
+	};
 });
 builder.Services.AddAuthorization();
 builder.Services.AddEndpointsApiExplorer();
@@ -104,10 +120,6 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 WebApplication app = builder.Build();
-//app.Urls.Add(builder.Configuration["Server"]);
-//app.UseAuthentication();
-//app.UseAuthorization();
-
 app.UseSwagger();
 app.UseSwaggerUI();
 app.UseHttpsRedirection();
@@ -155,17 +167,24 @@ app.MapPost("/account/login", [AllowAnonymous] async (HttpContext contex,IAntifo
             new Claim(JwtRegisteredClaimNames.Email,foundUser.UserName),
             new Claim(JwtRegisteredClaimNames.Jti,Guid.NewGuid().ToString())
         }),
-        Expires = DateTime.Now.AddHours(2),
+        Expires = DateTime.Now.AddMinutes(5),
         Audience=audience,
         Issuer=issuer,
         SigningCredentials=credentials
     };
     var token=jwtTokenHandler.CreateToken(tokenDescriptor);
     var jwtToken=jwtTokenHandler.WriteToken(token);
-    return Results.Ok(new{Token = jwtToken});
+    return Results.Ok(new{Token = jwtToken,RefreshToken=RandomString(35)});
     
     
 });
+
+string RandomString(int length)
+{
+    var random=new Random();
+    var chars="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    return new string(Enumerable.Repeat(chars, length).Select(x => x[random.Next(x.Length)]).ToArray());
+}
 
 // Signing up endpoint.
 app.MapPost("/account/signup", [AllowAnonymous] async (string userName,string password) =>
