@@ -582,7 +582,9 @@
         const responseJson = await response.json();
         localStorage.setItem('token', responseJson['token']);
         localStorage.setItem('userName', username);
+        localStorage.setItem('refreshToken', responseJson['refresh']);
         return true;
+
     }
 
     // Search functon.
@@ -750,38 +752,63 @@
         Alpine.store('recipes', getRecipes());
     }
 
+    // Refresh token.
+    async function refresh() {
+        let response = await fetch('@Configuration["Server"]' + 'token/refresh-token/?refreshToken=' + localStorage.getItem("refreshToken"), {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+        });
+        if (!response.ok) {
+            throw 'Can not refresh';
+        }
+      //  if (response != null) {
+            const responseJson = await response.json();
+            localStorage.setItem('refreshToken', responseJson['refresh']);
+            localStorage.setItem('token', responseJson['token']);
+      //  }
+    }
+
     // Listing recipes.
     async function getRecipes() {
-        const antiforgery = await getToken();
-        return await fetch('@Configuration["Server"]' + 'recipes', {
+        var antiforgery = await getToken();
+        let response = await fetch('@Configuration["Server"]' + 'recipes', {
             headers: {
                 'Content-Type': 'application/json',
                 "X-XSRF-TOKEN": antiforgery,
                 'Authorization': 'Bearer ' + localStorage.getItem("token"),
             },
             credentials: 'include'
-        }).then(res => res.json())
-            .then(data => {
-               return data
-            })
+        });
+        if (response.ok) {
+            return response.json();
+        }
+        else if (response.headers.get('is-token-expired')) {
+           await refresh();
+           return await getRecipes();
+        }
     }
-
 
     // Listing categories.
     async function getCategories() {
-        const antiforgery = await getToken();
-        return await fetch('@Configuration["Server"]' + 'categories', {
+        var antiforgery = await getToken();
+        let response = await fetch('@Configuration["Server"]' + 'categories', {
             headers: {
                 'Content-Type': 'application/json',
                 "X-XSRF-TOKEN": antiforgery,
                 'Authorization': 'Bearer ' + localStorage.getItem("token"),
             },
             credentials: 'include'
-        })
-            .then(res => res.json())
-            .then(data => {
-                return data
-            })
+        });
+        if (response.ok) {
+            return response.json();
+        }
+        else if (response.headers.get('is-token-expired')) {
+           await refresh();
+           return await getCategories();
+        }
     }
 
     // Deleting a recipe.

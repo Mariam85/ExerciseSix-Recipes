@@ -13,6 +13,7 @@ using System.Security.Cryptography;
 using System.ComponentModel;
 using Newtonsoft.Json;
 using Microsoft.AspNetCore.SignalR;
+using System.Text.Json.Nodes;
 
 var builder = WebApplication.CreateBuilder();
 var securityScheme = new OpenApiSecurityScheme()
@@ -82,24 +83,24 @@ builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
     options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
 }).AddJwtBearer(o =>
 {
+    var Key = Encoding.UTF8.GetBytes(builder.Configuration["JWT:Key"]);
     o.SaveToken = true;
     o.TokenValidationParameters = new TokenValidationParameters
     {
-        ValidateIssuer = true,
-        ValidateAudience = true,
-        ValidateLifetime = false,
+        ValidateIssuer = false,
+        ValidateAudience = false,
+        ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
-        ValidIssuer = builder.Configuration["Jwt:Issuer"],
-        ValidAudience = builder.Configuration["Jwt:Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey
-      (Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"])),
-        ClockSkew = TimeSpan.Zero
+        ValidIssuer = builder.Configuration["JWT:Issuer"],
+        ValidAudience = builder.Configuration["JWT:Audience"],
+        IssuerSigningKey = new SymmetricSecurityKey(Key),
+        ClockSkew = TimeSpan.FromSeconds(0)
     };
     o.Events = new JwtBearerEvents
     {
+
         OnAuthenticationFailed = context =>
         {
             if (context.Exception.GetType() == typeof(SecurityTokenExpiredException))
@@ -127,19 +128,33 @@ app.UseCors("client");
 app.UseAuthentication();
 app.UseAuthorization();
 
+// load previous Users if exists
+string usersFile = "Users.json";
+string jsonUsersString;
+var usersList = new List<User>();
+
+if (File.Exists(usersFile))
+{
+	if (new FileInfo(usersFile).Length > 0)
+	{
+		jsonUsersString = await File.ReadAllTextAsync(usersFile);
+        usersList = JsonConvert.DeserializeObject<List<User>>(jsonUsersString)!;
+	}
+}
+else
+{
+	File.Create(usersFile).Dispose();
+    }
+
 // Logining in endpoint.
 app.MapPost("/account/login", [AllowAnonymous] async (HttpContext contex, IAntiforgery antiforgery, string userName, string password) =>
 {
     // Checking if the user exists.
-    string jsonContent = await File.ReadAllTextAsync("Users.json");
-    if (jsonContent == null) { return Results.BadRequest(); }
-    var usersList = JsonConvert.DeserializeObject<List<User>>(jsonContent)!;
     var index = usersList.FindIndex((u) => u.UserName == userName);
     if (index == -1)
     {
         return Results.BadRequest("This user does not exist.");
     }
-
     // Verifying the password.
     using (var hmac = new HMACSHA512(usersList[index].PasswordSalt))
     {
@@ -149,37 +164,28 @@ app.MapPost("/account/login", [AllowAnonymous] async (HttpContext contex, IAntif
             return Results.BadRequest("The password entered is incorrect.");
         }
     }
-
     // Creating the token.
     var secureKey = Encoding.UTF8.GetBytes(builder.Configuration["JWT:Key"]);
-    var issuer = builder.Configuration["Jwt:Issuer"];
-    var audience = builder.Configuration["Jwt:Audience"];
     var securityKey = new SymmetricSecurityKey(secureKey);
     var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha512);
-
     var jwtTokenHandler = new JwtSecurityTokenHandler();
     var tokenDescriptor = new SecurityTokenDescriptor
     {
         Subject = new System.Security.Claims.ClaimsIdentity(new[]
         {
-            new Claim("Id",usersList[index].Id.ToString()),
-            new Claim(JwtRegisteredClaimNames.Sub,usersList[index].UserName),
-            new Claim(JwtRegisteredClaimNames.Email,usersList[index].UserName),
-            new Claim(JwtRegisteredClaimNames.Jti,Guid.NewGuid().ToString())
+            new Claim(JwtRegisteredClaimNames.Name,usersList[index].UserName),
         }),
-        Expires = DateTime.Now.AddMinutes(5),
-        Audience = audience,
-        Issuer = issuer,
+        Expires = DateTime.Now.AddSeconds(30),
         SigningCredentials = credentials
     };
     var token = jwtTokenHandler.CreateToken(tokenDescriptor);
     var jwtToken = jwtTokenHandler.WriteToken(token);
-    if(jwtToken != null)
-    {    
-        var refresh=RandomString(35);
-        usersList[index].RefreshToken=refresh;
-        UpdateUsers(usersList);
-        return Results.Ok(new { Token = jwtToken, RefreshToken = refresh });
+    if (jwtToken != null)
+    {
+        var refresh = RandomString(35);
+        usersList[index].RefreshToken = refresh;
+        await SaveAsync();
+        return Results.Ok(new { Token = jwtToken, Refresh = refresh });
     }
     else
     {
@@ -197,9 +203,7 @@ string RandomString(int length)
 // Signing up endpoint.
 app.MapPost("/account/signup", [AllowAnonymous] async (string userName, string password) =>
 {
-    string jsonContent = await File.ReadAllTextAsync("Users.json");
-    if (jsonContent == null) { return Results.BadRequest(); }
-    var usersList = JsonConvert.DeserializeObject<List<User>>(jsonContent)!;
+
 
     if (password.IsNullOrEmpty() || password.Length < 8)
     {
@@ -222,12 +226,11 @@ app.MapPost("/account/signup", [AllowAnonymous] async (string userName, string p
             passwordSalt = hmac.Key;
             passwordHash = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(password));
         }
-        User user = new(userName, passwordSalt, passwordHash,"");
+        User user = new(userName, passwordSalt, passwordHash, "");
         usersList.Add(user);
-        UpdateUsers(usersList);
+        await SaveAsync();
         return Results.Ok(user);
     }
-
 });
 
 // Generating an antiforgery token.
@@ -240,53 +243,42 @@ app.MapGet("/antiforgery", (IAntiforgery antiforgery, HttpContext context) =>
 // Refreshing the token.
 app.MapPost("token/refresh-token", async (string refreshToken) =>
 {
-    string jsonContent = await File.ReadAllTextAsync("Users.json");
-    if (jsonContent == null) { return Results.BadRequest(); }
-    var usersList = JsonConvert.DeserializeObject<List<User>>(jsonContent)!;
-
+    Console.WriteLine("refresh every 30 sec!");
     var index = usersList.FindIndex((u) => u.RefreshToken == refreshToken);
     if (index != -1)
     {
         // Creating the token.
         var secureKey = Encoding.UTF8.GetBytes(builder.Configuration["JWT:Key"]);
-        var issuer = builder.Configuration["Jwt:Issuer"];
-        var audience = builder.Configuration["Jwt:Audience"];
         var securityKey = new SymmetricSecurityKey(secureKey);
         var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha512);
-
         var jwtTokenHandler = new JwtSecurityTokenHandler();
         var tokenDescriptor = new SecurityTokenDescriptor
         {
             Subject = new System.Security.Claims.ClaimsIdentity(new[]
             {
-            new Claim("Id",usersList[index].Id.ToString()),
-            new Claim(JwtRegisteredClaimNames.Sub,usersList[index].UserName),
-            new Claim(JwtRegisteredClaimNames.Email,usersList[index].UserName),
-            new Claim(JwtRegisteredClaimNames.Jti,Guid.NewGuid().ToString())
+            new Claim(JwtRegisteredClaimNames.Name,usersList[index].UserName)
         }),
-            Expires = DateTime.Now.AddMinutes(5),
-            Audience = audience,
-            Issuer = issuer,
+            Expires = DateTime.Now.AddSeconds(30),
             SigningCredentials = credentials
         };
         var token = jwtTokenHandler.CreateToken(tokenDescriptor);
         var jwtToken = jwtTokenHandler.WriteToken(token);
-        var randomString = RandomString(35);
-
-        if (jwtToken == null)
+        if (jwtToken != null)
         {
-            return Results.Unauthorized();
+            var refresh = RandomString(35);
+            usersList[index].RefreshToken = refresh;
+            await SaveAsync();
+            return Results.Ok(new { Token = jwtToken, Refresh = refresh });
         }
         else
         {
-            usersList[index].RefreshToken = randomString;
-            UpdateUsers(usersList);
-            return Results.Ok(new { Token = jwtToken, RefreshToken = randomString });
+            return Results.Unauthorized();
         }
     }
     else
     {
-        return null;
+        Console.WriteLine("null");
+        return Results.Unauthorized();
     }
 
 });
@@ -599,11 +591,11 @@ static async void UpdateCategories(List<Categories> newRecipes)
 }
 
 // Updating the users json file content.
-static async void UpdateUsers(List<User> usersList)
+async Task SaveAsync()
 {
     string sCurrentDirectory = AppDomain.CurrentDomain.BaseDirectory;
     string sFile = System.IO.Path.Combine(Environment.CurrentDirectory, "Users.json");
     string sFilePath = Path.GetFullPath(sFile);
     var options = new JsonSerializerOptions { WriteIndented = true };
-    File.WriteAllText(sFilePath, System.Text.Json.JsonSerializer.Serialize(usersList));
+    File.WriteAllTextAsync(sFilePath, JsonConvert.SerializeObject(usersList));
 }
