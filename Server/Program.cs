@@ -16,13 +16,13 @@ using Microsoft.AspNetCore.SignalR;
 
 var builder = WebApplication.CreateBuilder();
 var securityScheme = new OpenApiSecurityScheme()
-{ 
+{
     Name = "Authorisation",
     Type = SecuritySchemeType.ApiKey,
-    Scheme="Bearer",
+    Scheme = "Bearer",
     BearerFormat = "JWT",
-    In =ParameterLocation.Header,
-    Description="JWT authentication for MinimalAPI"
+    In = ParameterLocation.Header,
+    Description = "JWT authentication for MinimalAPI"
 };
 
 var securityRequirements = new OpenApiSecurityRequirement()
@@ -43,22 +43,22 @@ var securityRequirements = new OpenApiSecurityRequirement()
 var contactInfo = new OpenApiContact()
 {
     Name = "Mariam Mostafa",
-    Email="mariammostafa.493@gmail.com",
+    Email = "mariammostafa.493@gmail.com",
     Url = new Uri("https://github.com/Mariam85")
 };
 
 var license = new OpenApiLicense()
-{ 
-   Name = "Free License"
+{
+    Name = "Free License"
 };
 
 var info = new OpenApiInfo()
 {
-    Version="V1",
-    Title="Recipes Api with JWT Authentication",
-    Description="Recipes Api with JWT Authentication",
-    Contact= contactInfo,
-    License= license
+    Version = "V1",
+    Title = "Recipes Api with JWT Authentication",
+    Description = "Recipes Api with JWT Authentication",
+    Contact = contactInfo,
+    License = license
 };
 
 builder.Services.AddCors(options =>
@@ -80,42 +80,42 @@ builder.Services.AddEndpointsApiExplorer();
 
 builder.Services.AddAuthentication(options =>
 {
-  options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-  options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-  options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
 }).AddJwtBearer(o =>
 {
-  o.SaveToken=true;
-  o.TokenValidationParameters = new TokenValidationParameters
-  {
-    ValidateIssuer = true, 
-    ValidateAudience = true,
-    ValidateLifetime = false,
-    ValidateIssuerSigningKey = true,
-    ValidIssuer = builder.Configuration["Jwt:Issuer"],
-    ValidAudience = builder.Configuration["Jwt:Audience"],
-    IssuerSigningKey = new SymmetricSecurityKey
-    (Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"])),
-    ClockSkew=TimeSpan.Zero
-   };
-   o.Events = new JwtBearerEvents
-	{
-		OnAuthenticationFailed = context =>
-		{
-			if (context.Exception.GetType() == typeof(SecurityTokenExpiredException))
-			{
-				context.Response.Headers.Add("IS-TOKEN-EXPIRED", "true");
-			}
-			return Task.CompletedTask;
-		}
-	};
+    o.SaveToken = true;
+    o.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = false,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = builder.Configuration["Jwt:Issuer"],
+        ValidAudience = builder.Configuration["Jwt:Audience"],
+        IssuerSigningKey = new SymmetricSecurityKey
+      (Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"])),
+        ClockSkew = TimeSpan.Zero
+    };
+    o.Events = new JwtBearerEvents
+    {
+        OnAuthenticationFailed = context =>
+        {
+            if (context.Exception.GetType() == typeof(SecurityTokenExpiredException))
+            {
+                context.Response.Headers.Add("IS-TOKEN-EXPIRED", "true");
+            }
+            return Task.CompletedTask;
+        }
+    };
 });
 builder.Services.AddAuthorization();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
-    options.SwaggerDoc("v1",info);
-    options.AddSecurityDefinition("Bearer",securityScheme);
+    options.SwaggerDoc("v1", info);
+    options.AddSecurityDefinition("Bearer", securityScheme);
     options.AddSecurityRequirement(securityRequirements);
 });
 
@@ -128,23 +128,23 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 // Logining in endpoint.
-app.MapPost("/account/login", [AllowAnonymous] async (HttpContext contex,IAntiforgery antiforgery,string userName,string password) =>
+app.MapPost("/account/login", [AllowAnonymous] async (HttpContext contex, IAntiforgery antiforgery, string userName, string password) =>
 {
     // Checking if the user exists.
     string jsonContent = await File.ReadAllTextAsync("Users.json");
     if (jsonContent == null) { return Results.BadRequest(); }
     var usersList = JsonConvert.DeserializeObject<List<User>>(jsonContent)!;
-    User? foundUser=usersList.Find((u) => u.UserName == userName);
-    if(foundUser == null)
+    var index = usersList.FindIndex((u) => u.UserName == userName);
+    if (index == -1)
     {
         return Results.BadRequest("This user does not exist.");
     }
 
     // Verifying the password.
-    using (var hmac = new HMACSHA512(foundUser.PasswordSalt))
+    using (var hmac = new HMACSHA512(usersList[index].PasswordSalt))
     {
         var computedHash = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(password));
-        if(!computedHash.SequenceEqual(foundUser.PasswordHash))
+        if (!computedHash.SequenceEqual(usersList[index].PasswordHash))
         {
             return Results.BadRequest("The password entered is incorrect.");
         }
@@ -154,85 +154,147 @@ app.MapPost("/account/login", [AllowAnonymous] async (HttpContext contex,IAntifo
     var secureKey = Encoding.UTF8.GetBytes(builder.Configuration["JWT:Key"]);
     var issuer = builder.Configuration["Jwt:Issuer"];
     var audience = builder.Configuration["Jwt:Audience"];
-    var securityKey= new SymmetricSecurityKey(secureKey);
-    var credentials = new SigningCredentials(securityKey,SecurityAlgorithms.HmacSha512);
-   
-    var jwtTokenHandler=new JwtSecurityTokenHandler();
-    var tokenDescriptor=new SecurityTokenDescriptor
+    var securityKey = new SymmetricSecurityKey(secureKey);
+    var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha512);
+
+    var jwtTokenHandler = new JwtSecurityTokenHandler();
+    var tokenDescriptor = new SecurityTokenDescriptor
     {
         Subject = new System.Security.Claims.ClaimsIdentity(new[]
         {
-            new Claim("Id",foundUser.Id.ToString()),  
-            new Claim(JwtRegisteredClaimNames.Sub,foundUser.UserName),
-            new Claim(JwtRegisteredClaimNames.Email,foundUser.UserName),
+            new Claim("Id",usersList[index].Id.ToString()),
+            new Claim(JwtRegisteredClaimNames.Sub,usersList[index].UserName),
+            new Claim(JwtRegisteredClaimNames.Email,usersList[index].UserName),
             new Claim(JwtRegisteredClaimNames.Jti,Guid.NewGuid().ToString())
         }),
         Expires = DateTime.Now.AddMinutes(5),
-        Audience=audience,
-        Issuer=issuer,
-        SigningCredentials=credentials
+        Audience = audience,
+        Issuer = issuer,
+        SigningCredentials = credentials
     };
-    var token=jwtTokenHandler.CreateToken(tokenDescriptor);
-    var jwtToken=jwtTokenHandler.WriteToken(token);
-    return Results.Ok(new{Token = jwtToken,RefreshToken=RandomString(35)});
-    
-    
+    var token = jwtTokenHandler.CreateToken(tokenDescriptor);
+    var jwtToken = jwtTokenHandler.WriteToken(token);
+    if(jwtToken != null)
+    {    
+        var refresh=RandomString(35);
+        usersList[index].RefreshToken=refresh;
+        UpdateUsers(usersList);
+        return Results.Ok(new { Token = jwtToken, RefreshToken = refresh });
+    }
+    else
+    {
+        return Results.Unauthorized();
+    }
 });
 
 string RandomString(int length)
 {
-    var random=new Random();
-    var chars="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    var random = new Random();
+    var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     return new string(Enumerable.Repeat(chars, length).Select(x => x[random.Next(x.Length)]).ToArray());
 }
 
 // Signing up endpoint.
-app.MapPost("/account/signup", [AllowAnonymous] async (string userName,string password) =>
+app.MapPost("/account/signup", [AllowAnonymous] async (string userName, string password) =>
 {
     string jsonContent = await File.ReadAllTextAsync("Users.json");
     if (jsonContent == null) { return Results.BadRequest(); }
     var usersList = JsonConvert.DeserializeObject<List<User>>(jsonContent)!;
 
-    if (password.IsNullOrEmpty() || password.Length<8)
+    if (password.IsNullOrEmpty() || password.Length < 8)
     {
-       return Results.BadRequest("Password is invalid");
+        return Results.BadRequest("Password is invalid");
     }
-    else if(usersList.Find((x) => x.UserName == userName)!=null)
+    else if (usersList.Find((x) => x.UserName == userName) != null)
     {
         return Results.BadRequest("Username already exists");
     }
-    else if(userName.IsNullOrEmpty())
+    else if (userName.IsNullOrEmpty())
     {
         return Results.BadRequest("Username is invalid");
     }
     else
-    { 
-        byte[] passwordSalt={};
-        byte[] passwordHash={};
-        using (var hmac= new HMACSHA512())
+    {
+        byte[] passwordSalt = { };
+        byte[] passwordHash = { };
+        using (var hmac = new HMACSHA512())
         {
-          passwordSalt = hmac.Key;
-          passwordHash = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(password));
+            passwordSalt = hmac.Key;
+            passwordHash = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(password));
         }
-        User user=new(userName,passwordSalt,passwordHash);
+        User user = new(userName, passwordSalt, passwordHash,"");
         usersList.Add(user);
         UpdateUsers(usersList);
         return Results.Ok(user);
     }
-    
+
 });
 
-// Generating a token.
+// Generating an antiforgery token.
 app.MapGet("/antiforgery", (IAntiforgery antiforgery, HttpContext context) =>
 {
     var tokens = antiforgery.GetAndStoreTokens(context);
     context.Response.Cookies.Append("XSRF-TOKEN", tokens.RequestToken!, new CookieOptions { HttpOnly = false });
 });
 
-// Adding a recipe.
-app.MapPost("recipes/add-recipe",[Authorize] async (Recipe recipe, HttpContext context, IAntiforgery antiforgery) =>
+// Refreshing the token.
+app.MapPost("token/refresh-token", async (string refreshToken) =>
 {
-    try 
+    string jsonContent = await File.ReadAllTextAsync("Users.json");
+    if (jsonContent == null) { return Results.BadRequest(); }
+    var usersList = JsonConvert.DeserializeObject<List<User>>(jsonContent)!;
+
+    var index = usersList.FindIndex((u) => u.RefreshToken == refreshToken);
+    if (index != -1)
+    {
+        // Creating the token.
+        var secureKey = Encoding.UTF8.GetBytes(builder.Configuration["JWT:Key"]);
+        var issuer = builder.Configuration["Jwt:Issuer"];
+        var audience = builder.Configuration["Jwt:Audience"];
+        var securityKey = new SymmetricSecurityKey(secureKey);
+        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha512);
+
+        var jwtTokenHandler = new JwtSecurityTokenHandler();
+        var tokenDescriptor = new SecurityTokenDescriptor
+        {
+            Subject = new System.Security.Claims.ClaimsIdentity(new[]
+            {
+            new Claim("Id",usersList[index].Id.ToString()),
+            new Claim(JwtRegisteredClaimNames.Sub,usersList[index].UserName),
+            new Claim(JwtRegisteredClaimNames.Email,usersList[index].UserName),
+            new Claim(JwtRegisteredClaimNames.Jti,Guid.NewGuid().ToString())
+        }),
+            Expires = DateTime.Now.AddMinutes(5),
+            Audience = audience,
+            Issuer = issuer,
+            SigningCredentials = credentials
+        };
+        var token = jwtTokenHandler.CreateToken(tokenDescriptor);
+        var jwtToken = jwtTokenHandler.WriteToken(token);
+        var randomString = RandomString(35);
+
+        if (jwtToken == null)
+        {
+            return Results.Unauthorized();
+        }
+        else
+        {
+            usersList[index].RefreshToken = randomString;
+            UpdateUsers(usersList);
+            return Results.Ok(new { Token = jwtToken, RefreshToken = randomString });
+        }
+    }
+    else
+    {
+        return null;
+    }
+
+});
+
+// Adding a recipe.
+app.MapPost("recipes/add-recipe", [Authorize] async (Recipe recipe, HttpContext context, IAntiforgery antiforgery) =>
+{
+    try
     {
         await antiforgery.ValidateRequestAsync(context);
         List<Recipe> recipes = await ReadFile();
@@ -251,7 +313,7 @@ app.MapPost("recipes/add-recipe",[Authorize] async (Recipe recipe, HttpContext c
 });
 
 // Editing a recipe.
-app.MapPut("recipes/edit-recipe/{id}",[Authorize] async (Guid id, Recipe editedRecipe, HttpContext context, IAntiforgery antiforgery) =>
+app.MapPut("recipes/edit-recipe/{id}", [Authorize] async (Guid id, Recipe editedRecipe, HttpContext context, IAntiforgery antiforgery) =>
 {
     try
     {
@@ -274,7 +336,7 @@ app.MapPut("recipes/edit-recipe/{id}",[Authorize] async (Guid id, Recipe editedR
 });
 
 // Listing a recipe.
-app.MapGet("recipes/list-recipe/{id}",[Authorize] async (Guid id, HttpContext context, IAntiforgery antiforgery) =>
+app.MapGet("recipes/list-recipe/{id}", [Authorize] async (Guid id, HttpContext context, IAntiforgery antiforgery) =>
 {
     try
     {
@@ -293,7 +355,7 @@ app.MapGet("recipes/list-recipe/{id}",[Authorize] async (Guid id, HttpContext co
 });
 
 // Deleting a recipe.
-app.MapDelete("recipes/delete-recipe/{id}",[Authorize] async (Guid id, HttpContext context, IAntiforgery antiforgery) =>
+app.MapDelete("recipes/delete-recipe/{id}", [Authorize] async (Guid id, HttpContext context, IAntiforgery antiforgery) =>
 {
     try
     {
@@ -317,7 +379,7 @@ app.MapDelete("recipes/delete-recipe/{id}",[Authorize] async (Guid id, HttpConte
 });
 
 // Adding a category.
-app.MapPost("recipes/add-category",[Authorize] async (Categories category, HttpContext context, IAntiforgery antiforgery) =>
+app.MapPost("recipes/add-category", [Authorize] async (Categories category, HttpContext context, IAntiforgery antiforgery) =>
 {
     try
     {
@@ -349,7 +411,7 @@ app.MapPost("recipes/add-category",[Authorize] async (Categories category, HttpC
 });
 
 // Renaming a category.
-app.MapPut("categories/rename-category",[Authorize] async (string oldName, string newName, HttpContext context, IAntiforgery antiforgery) =>
+app.MapPut("categories/rename-category", [Authorize] async (string oldName, string newName, HttpContext context, IAntiforgery antiforgery) =>
 {
     try
     {
@@ -405,7 +467,7 @@ app.MapPut("categories/rename-category",[Authorize] async (string oldName, strin
 });
 
 // Removing a category.
-app.MapDelete("recipes/remove-category/{category}",[Authorize] async (string category, HttpContext context, IAntiforgery antiforgery) =>
+app.MapDelete("recipes/remove-category/{category}", [Authorize] async (string category, HttpContext context, IAntiforgery antiforgery) =>
 {
     try
     {
@@ -453,7 +515,7 @@ app.MapDelete("recipes/remove-category/{category}",[Authorize] async (string cat
 });
 
 // Getting the json file content to display it.
-app.MapGet("recipes",[Authorize]async (HttpContext context, IAntiforgery antiforgery) =>
+app.MapGet("recipes", [Authorize] async (HttpContext context, IAntiforgery antiforgery) =>
 {
     try
     {
@@ -468,7 +530,7 @@ app.MapGet("recipes",[Authorize]async (HttpContext context, IAntiforgery antifor
 });
 
 // Getting the json file content of the categories.
-app.MapGet("categories",[Authorize]async (HttpContext context, IAntiforgery antiforgery) =>
+app.MapGet("categories", [Authorize] async (HttpContext context, IAntiforgery antiforgery) =>
 {
     try
     {

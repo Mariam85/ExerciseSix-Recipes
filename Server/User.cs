@@ -8,12 +8,14 @@ public class User
     public string UserName { get; set; }
     public byte[]? PasswordHash { get; set; }
     public byte[]? PasswordSalt { get; set; }
+    public string RefreshToken { get; set; } = String.Empty;
 
-    public User(string userName, byte[] salt, byte[] hash)
+    public User(string userName, byte[] salt, byte[] hash,string refresh)
     {
         Id = Guid.NewGuid();
         UserName = userName;
         PasswordHash = hash;
         PasswordSalt = salt;
+        RefreshToken = refresh;
     }
 }
