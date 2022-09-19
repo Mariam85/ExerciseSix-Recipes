@@ -62,19 +62,25 @@ var info = new OpenApiInfo()
     License = license
 };
 
+IConfiguration config = new ConfigurationBuilder()
+    .AddJsonFile("appsettings.json")
+    .AddEnvironmentVariables()
+    .Build();
+
+builder.Services.AddAntiforgery(options => options.HeaderName = "X-XSRF-TOKEN");
+var MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy(name: "client",
+    options.AddPolicy(name: MyAllowSpecificOrigins,
                       policy =>
                       {
-                          policy.WithOrigins(builder.Configuration["Client"])
-                                .AllowAnyHeader()
-                                .AllowAnyMethod()
-                                .WithExposedHeaders("IS-TOKEN-EXPIRED")
-                                .AllowCredentials();
+                          policy.WithOrigins(config["Client"])
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .WithExposedHeaders("IS-TOKEN-EXPIRED")
+            .AllowCredentials();
                       });
 });
-builder.Services.AddAntiforgery(options => options.HeaderName = "X-XSRF-TOKEN");
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddAuthentication(options =>
@@ -122,7 +128,7 @@ WebApplication app = builder.Build();
 app.UseSwagger();
 app.UseSwaggerUI();
 app.UseHttpsRedirection();
-app.UseCors("client");
+app.UseCors(MyAllowSpecificOrigins);
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -172,7 +178,7 @@ app.MapPost("/account/login", [AllowAnonymous] async (HttpContext contex, IAntif
         {
             new Claim(JwtRegisteredClaimNames.Name,usersList[index].UserName),
         }),
-        Expires = DateTime.Now.AddSeconds(30),
+        Expires = DateTime.Now.AddMinutes(20),
         SigningCredentials = credentials
     };
     var token = jwtTokenHandler.CreateToken(tokenDescriptor);
@@ -198,20 +204,98 @@ string RandomString(int length)
     return new string(Enumerable.Repeat(chars, length).Select(x => x[random.Next(x.Length)]).ToArray());
 }
 
+// Validating the password.
+bool ValidatePassword(string password)
+{
+    int validConditions = 0;
+    foreach (char c in password)
+    {
+        if (c >= 'a' && c <= 'z')
+        {
+            validConditions++;
+            break;
+        }
+    }
+    foreach (char c in password)
+    {
+        if (c >= 'A' && c <= 'Z')
+        {
+            validConditions++;
+            break;
+        }
+    }
+    if (validConditions == 0) return false;
+    foreach (char c in password)
+    {
+        if (c >= '0' && c <= '9')
+        {
+            validConditions++;
+            break;
+        }
+    }
+    if (validConditions == 1) return false;
+    if (validConditions == 2)
+    {
+        char[] special = { '@', '#', '$', '%', '^', '&', '+', '=' };
+        if (password.IndexOfAny(special) == -1) return false;
+    }
+    return true;
+}
+
+// Validating the username.
+bool ValidateUsername(string username)
+{
+    if (username.Length > 30 || username.Length < 8)
+    {
+        return false;
+    }
+    int validConditions = 0;
+    // Checking that at least 1 letter exists. 
+    foreach (char c in username)
+    {
+        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))
+        {
+            validConditions++;
+            break;
+        }
+    }
+    if (validConditions == 0)
+    {
+        return false;
+    }
+    // Checking that at least 1 number exists. 
+    foreach (char c in username)
+    {
+        if (c >= '0' && c <= '9')
+        {
+            validConditions++;
+            break;
+        }
+    }
+    if (validConditions <= 1)
+    {
+        return false;
+    }
+    else
+    {
+        return true;
+    }
+}
+
 // Signing up endpoint.
 app.MapPost("/account/signup", [AllowAnonymous] async (string userName, string password) =>
 {
-    if (password.IsNullOrEmpty() || password.Length < 8)
-    {
-        return Results.BadRequest("Password is invalid");
-    }
-    else if (usersList.Find((x) => x.UserName == userName) != null)
+    if (usersList.Find((x) => x.UserName == userName) != null)
     {
         return Results.BadRequest("Username already exists");
     }
-    else if (userName.IsNullOrEmpty())
+    else if (userName.IsNullOrEmpty() || ValidateUsername(userName) == false)
     {
         return Results.BadRequest("Username is invalid");
+    }
+    else if (password.IsNullOrEmpty() || ValidatePassword(password) == false)
+    {
+        return Results.BadRequest("Password is invalid");
     }
     else
     {
@@ -230,10 +314,11 @@ app.MapPost("/account/signup", [AllowAnonymous] async (string userName, string p
 });
 
 // Generating an antiforgery token.
-app.MapGet("/antiforgery", (IAntiforgery antiforgery, HttpContext context) =>
+app.MapGet("/antiforgery", (IAntiforgery forgeryService, HttpContext context) =>
 {
-    var tokens = antiforgery.GetAndStoreTokens(context);
-    context.Response.Cookies.Append("XSRF-TOKEN", tokens.RequestToken!, new CookieOptions { HttpOnly = false });
+    var tokens = forgeryService.GetAndStoreTokens(context);
+    context.Response.Cookies.Append("XSRF-TOKEN", tokens.RequestToken!,
+            new CookieOptions { HttpOnly = false });
 });
 
 // Refreshing the token.
@@ -253,7 +338,7 @@ app.MapPost("token/refresh-token", async (string refreshToken) =>
             {
             new Claim(JwtRegisteredClaimNames.Name,usersList[index].UserName)
         }),
-            Expires = DateTime.Now.AddSeconds(30),
+            Expires = DateTime.Now.AddMinutes(20),
             SigningCredentials = credentials
         };
         var token = jwtTokenHandler.CreateToken(tokenDescriptor);
@@ -543,19 +628,8 @@ static async Task<List<Recipe>> ReadFile()
     string sFile = System.IO.Path.Combine(Environment.CurrentDirectory, "Text.json");
     string sFilePath = Path.GetFullPath(sFile);
     string jsonString = await File.ReadAllTextAsync(sFilePath);
-    List<Recipe>? menu = System.Text.Json.JsonSerializer.Deserialize<List<Recipe>>(jsonString);
+    List<Recipe> menu = System.Text.Json.JsonSerializer.Deserialize<List<Recipe>>(jsonString)!;
     return menu;
-}
-
-// Reading the users json file content.
-static async Task<List<User>> ReadUsers()
-{
-    string sCurrentDirectory = AppDomain.CurrentDomain.BaseDirectory;
-    string sFile = System.IO.Path.Combine(Environment.CurrentDirectory, "Users.json");
-    string sFilePath = Path.GetFullPath(sFile);
-    string jsonString = await File.ReadAllTextAsync(sFilePath);
-    List<User>? users = System.Text.Json.JsonSerializer.Deserialize<List<User>>(jsonString);
-    return users;
 }
 
 // Reading the categories json file content.
@@ -565,7 +639,7 @@ static async Task<List<Categories>> ReadCategories()
     string sFile = System.IO.Path.Combine(Environment.CurrentDirectory, "Categories.json");
     string sFilePath = Path.GetFullPath(sFile);
     string jsonString = await File.ReadAllTextAsync(sFilePath);
-    List<Categories>? menu = System.Text.Json.JsonSerializer.Deserialize<List<Categories>>(jsonString);
+    List<Categories> menu = System.Text.Json.JsonSerializer.Deserialize<List<Categories>>(jsonString)!;
     return menu;
 }
 
@@ -576,7 +650,7 @@ static async void UpdateFile(List<Recipe> newRecipes)
     string sFile = System.IO.Path.Combine(Environment.CurrentDirectory, "Text.json");
     string sFilePath = Path.GetFullPath(sFile);
     var options = new JsonSerializerOptions { WriteIndented = true };
-    File.WriteAllText(sFilePath, System.Text.Json.JsonSerializer.Serialize(newRecipes));
+    await File.WriteAllTextAsync(sFilePath, System.Text.Json.JsonSerializer.Serialize(newRecipes, options));
 }
 
 // Updating the categories json file content.
@@ -586,7 +660,7 @@ static async void UpdateCategories(List<Categories> newRecipes)
     string sFile = System.IO.Path.Combine(Environment.CurrentDirectory, "Categories.json");
     string sFilePath = Path.GetFullPath(sFile);
     var options = new JsonSerializerOptions { WriteIndented = true };
-    File.WriteAllText(sFilePath, System.Text.Json.JsonSerializer.Serialize(newRecipes));
+    await File.WriteAllTextAsync(sFilePath, System.Text.Json.JsonSerializer.Serialize(newRecipes, options));
 }
 
 // Updating the users json file content.
@@ -595,6 +669,5 @@ async Task SaveAsync()
     string sCurrentDirectory = AppDomain.CurrentDomain.BaseDirectory;
     string sFile = System.IO.Path.Combine(Environment.CurrentDirectory, "Users.json");
     string sFilePath = Path.GetFullPath(sFile);
-    var options = new JsonSerializerOptions { WriteIndented = true };
-    File.WriteAllTextAsync(sFilePath, JsonConvert.SerializeObject(usersList));
+    await File.WriteAllTextAsync(sFilePath, JsonConvert.SerializeObject(usersList));
 }

@@ -43,14 +43,14 @@
                             <template x-data={username:'',password:''} x-if="login">
                                 <form id="loginForm">
                                     <div id="registerCard" class="card-body" x-show="login">
-                                        <h4 class="card-title text-center">Login</h4>
+                                        <h4 class="card-title text-center" style="color:#00008B;">Login</h4>
                                         <div class="mb-3">
-                                            <label for="usernameInput" class="form-label">Username</label>
+                                            <label for="usernameInput" class="form-label bol" style="color:#00008B;">Username</label>
                                             <input x-model="username" type="text" class="form-control" id="usernameInput" aria-describedby="usernameHelp">
                                             <span id="usernameHelp" class="form-text"></span>
                                         </div>
                                         <div class="mb-3">
-                                            <label for="passwordInput" class="form-label">Password</label>
+                                            <label for="passwordInput" class="form-label" style="color:#00008B;">Password</label>
                                             <input x-model="password" type="password" id="passwordInput" class="form-control" aria-describedby="passwordHelp">
                                         </div>
                                     </div>
@@ -59,19 +59,36 @@
                                     </div>
                                 </form>
                             </template>
-
                             <template x-data="{usernameRegister:'', passwordRegister:''}" x-if="!login">
                                 <form id="registerForm">
                                     <div id="registerCard" class="card-body" x-show="!login">
-                                        <h4 class="card-title text-center">Signup</h4>
+                                        <h4 class="card-title text-center" style="color:#00008B;">Signup</h4>
                                         <div class="mb-3">
-                                            <label for="usernameInput" class="form-label">Username</label>
+                                            <label for="usernameInput" class="form-label" style="color:#00008B;">Username</label>
                                             <input x-model="usernameRegister" type="text" class="form-control" id="usernameInput"
                                                    aria-describedby="usernameHelp" min="1">
                                         </div>
+                                        <div class="form-text">
+                                            Usernames must have:
+                                            <ul>
+                                                <li>Between 8 and 30 characters</li>
+                                                <li>At least one letter</li>
+                                                <li>At least one number</li>
+                                            </ul>
+                                        </div>
                                         <div class="mb-3">
-                                            <label for="passwordInput" class="form-label">Password</label>
-                                            <input x-model="passwordRegister" min="5" max="20" type="password" id="passwordInput" class="form-control">
+                                            <label for="passwordInput" class="form-label" style="color:#00008B;">Password</label>
+                                            <input x-model="passwordRegister" type="password" id="passwordInput" class="form-control">
+                                        </div>
+                                        <div class="form-text">
+                                            Passwords must have:
+                                            <ul>
+                                                <li>At least one lower case letter</li>
+                                                <li>At least one upper case letter</li>
+                                                <li>At least one special character</li>
+                                                <li>At least one number</li>
+                                                <li>At least 8 characters</li>
+                                            </ul>
                                         </div>
                                     </div>
                                     <div class="modal-footer">
@@ -469,7 +486,7 @@
 
 <script>
     document.addEventListener('alpine:init', () => {
-        if (isAuthenticated()==true) {
+        if (isAuthenticated() == true) {
             Alpine.store('recipes', getRecipes());
             Alpine.store('cat', getCategories());
         }
@@ -479,7 +496,7 @@
         let response = await fetch('@Configuration["Server"]' + 'antiforgery', {
 			method: "GET",
 			headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem("token"),
+                'Authorization': 'Bearer ' + localStorage.getItem('token'),
 			},
 			credentials: 'include'
 		});
@@ -512,25 +529,51 @@
 
     // Signup function.
     async function registerUser(username, password) {
-        if (username.length == 0 || password.length==0) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Oops...',
-                    text: 'Please enter a username and a password',
-                    confirmButtonColor: '#0275d8'
-                });
-                return false;
+        if (username.length == 0 || password.length == 0) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Failed',
+                text: 'Please enter a username and a password',
+                confirmButtonColor: '#0275d8'
+            });
+            return false;
         }
-        await fetch('@Configuration["Server"]' + 'account/signup?username=' + username + '&password=' + password, {
+        let response = await fetch('@Configuration["Server"]' + 'account/signup?username=' + username + '&password=' + password, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             }
-        }).then((response) => {
-            if (response.status === 200) {
+        });
+        response.text().then(function (text) {
+            if (text.includes("Username already exists")) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Failed',
+                    text: 'this username already exists',
+                    confirmButtonColor: '#0275d8'
+                });
+            }
+            else if (text.includes("Password is invalid")) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Failed',
+                    text: 'please follow the password requirements',
+                    confirmButtonColor: '#0275d8'
+                });
+            }
+            else if (text.includes("Username is invalid")) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Failed',
+                    text: 'please follow the username requirements',
+                    confirmButtonColor: '#0275d8'
+                });
+            }
+            else if (response.status === 200) {
                 Swal.fire({
                     icon: 'success',
-                    title: 'User Created',
+                    title: 'Success!',
+                    text: 'successfuly created an account!',
                     confirmButtonColor: '#0275d8'
                 }).then(() => {
                     return true;
@@ -539,58 +582,79 @@
             else {
                 Swal.fire({
                     icon: 'error',
-                    title: 'Oops...',
-                    text: 'Failed to create the user!',
+                    title: 'Failed',
+                    text: 'Could not signup',
                     confirmButtonColor: '#0275d8'
                 });
-                return false;
             }
         });
     }
 
     // Login function.
     async function loginUser(username, password) {
-        if (password.length == 0 || username.length==0) {
+        if (password.length == 0 || username.length == 0) {
             Swal.fire({
                 icon: 'error',
-                title: 'Oops...',
+                title: 'Failed',
                 text: 'Please enter a password and a username',
                 confirmButtonColor: '#0275d8'
             });
             this.loggedIn = false;
             return;
         }
-        var response = await fetch('@Configuration["Server"]' + 'account/login?username=' + username + '&password=' + password, {
+        let response = await fetch('@Configuration["Server"]' + 'account/login?username=' + username + '&password=' + password, {
             method: 'POST',
             credentials: 'include',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            })
-        if (response.status != 200) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Oops...',
-                    text: 'Failed to login',
-                    confirmButtonColor: '#0275d8'
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        if (response.status == 200) {
+            const responseJson = await response.json();
+            Swal.fire({
+                title: 'Success!',
+                text: 'successfuly logged in!',
+                icon: 'success',
+                confirmButtonColor: '#0275d8'
+            }).then(
+                function () {
+                    localStorage.setItem('token', responseJson['token']);
+                    localStorage.setItem('userName', username);
+                    localStorage.setItem('refreshToken', responseJson['refresh']);
+                    this.loggedIn = true;
+                    document.location.reload();
                 });
+        }
+        else {
+            response.text().then(function (text) {
+                if (text.includes("This user does not exist.")) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Failed',
+                        text: 'This user does not exist',
+                        confirmButtonColor: '#0275d8'
+                    });
+                }
+                else if (text.includes("The password entered is incorrect.")) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Failed',
+                        text: 'The password entered is incorrect',
+                        confirmButtonColor: '#0275d8'
+                    });
+                }
+                else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Failed',
+                        text: 'Could not login',
+                        confirmButtonColor: '#0275d8'
+                    });
+                }
+            });
             this.loggedIn = false;
             return;
         }
-        const responseJson = await response.json();
-        Swal.fire({
-                    title: 'Success!',
-                    text: 'successfuly logged in!',
-                    icon: 'success',
-                    confirmButtonColor: '#0275d8'
-        }).then(
-            function () {
-                localStorage.setItem('token', responseJson['token']);
-                localStorage.setItem('userName', username);
-                localStorage.setItem('refreshToken', responseJson['refresh']);
-                this.loggedIn = true;
-                document.location.reload();
-            });
     }
 
     // Logout function
@@ -767,17 +831,17 @@
     }
 
     // Listing a recipe.
-    async function listRecipe(recipe,recipeDetails) {
+    async function listRecipe(recipe, recipeDetails) {
         const antiforgery = await getToken();
         let url = '@Configuration["Server"]' + 'recipes/list-recipe/' + recipe.id;
         let oldRecipe = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    "X-XSRF-TOKEN": antiforgery,
-                    'Authorization': 'Bearer ' + localStorage.getItem("token"),
-                },
-                credentials: 'include'
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                "X-XSRF-TOKEN": antiforgery,
+                'Authorization': 'Bearer ' + localStorage.getItem("token"),
+            },
+            credentials: 'include'
         });
         if (oldRecipe.headers.get('is-token-expired')) {
             await refresh("k");
@@ -832,8 +896,8 @@
             return response.json();
         }
         else if (response.headers.get('is-token-expired')) {
-           await refresh("getRecipes");
-           return await getRecipes();
+            await refresh("getRecipes");
+            return await getRecipes();
         }
     }
 
@@ -852,8 +916,8 @@
             return response.json();
         }
         else if (response.headers.get('is-token-expired')) {
-          await refresh("getCategories");
-          return await getCategories();
+            await refresh("getCategories");
+            return await getCategories();
         }
     }
 
