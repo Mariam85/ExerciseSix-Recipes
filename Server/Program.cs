@@ -77,8 +77,6 @@ builder.Services.AddCors(options =>
 builder.Services.AddAntiforgery(options => options.HeaderName = "X-XSRF-TOKEN");
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-
-
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -128,23 +126,22 @@ app.UseCors("client");
 app.UseAuthentication();
 app.UseAuthorization();
 
-// load previous Users if exists
+// Reading Users.json
 string usersFile = "Users.json";
 string jsonUsersString;
 var usersList = new List<User>();
-
 if (File.Exists(usersFile))
 {
-	if (new FileInfo(usersFile).Length > 0)
-	{
-		jsonUsersString = await File.ReadAllTextAsync(usersFile);
+    if (new FileInfo(usersFile).Length > 0)
+    {
+        jsonUsersString = await File.ReadAllTextAsync(usersFile);
         usersList = JsonConvert.DeserializeObject<List<User>>(jsonUsersString)!;
-	}
+    }
 }
 else
 {
-	File.Create(usersFile).Dispose();
-    }
+    File.Create(usersFile).Dispose();
+}
 
 // Logining in endpoint.
 app.MapPost("/account/login", [AllowAnonymous] async (HttpContext contex, IAntiforgery antiforgery, string userName, string password) =>
@@ -193,6 +190,7 @@ app.MapPost("/account/login", [AllowAnonymous] async (HttpContext contex, IAntif
     }
 });
 
+// Generating a random string for the refresh token.
 string RandomString(int length)
 {
     var random = new Random();
@@ -203,8 +201,6 @@ string RandomString(int length)
 // Signing up endpoint.
 app.MapPost("/account/signup", [AllowAnonymous] async (string userName, string password) =>
 {
-
-
     if (password.IsNullOrEmpty() || password.Length < 8)
     {
         return Results.BadRequest("Password is invalid");
@@ -243,7 +239,6 @@ app.MapGet("/antiforgery", (IAntiforgery antiforgery, HttpContext context) =>
 // Refreshing the token.
 app.MapPost("token/refresh-token", async (string refreshToken) =>
 {
-    Console.WriteLine("refresh every 30 sec!");
     var index = usersList.FindIndex((u) => u.RefreshToken == refreshToken);
     if (index != -1)
     {
@@ -267,8 +262,15 @@ app.MapPost("token/refresh-token", async (string refreshToken) =>
         {
             var refresh = RandomString(35);
             usersList[index].RefreshToken = refresh;
-            await SaveAsync();
-            return Results.Ok(new { Token = jwtToken, Refresh = refresh });
+            try
+            {
+                await SaveAsync();
+                return Results.Ok(new { Token = jwtToken, Refresh = refresh });
+            }
+            catch
+            {
+                return Results.Unauthorized();
+            }
         }
         else
         {
@@ -277,10 +279,8 @@ app.MapPost("token/refresh-token", async (string refreshToken) =>
     }
     else
     {
-        Console.WriteLine("null");
         return Results.Unauthorized();
     }
-
 });
 
 // Adding a recipe.
@@ -412,7 +412,6 @@ app.MapPut("categories/rename-category", [Authorize] async (string oldName, stri
         {
             return Results.BadRequest("you have entered the same name");
         }
-
         // Renaming category in the categories file.
         List<Categories> categories = await ReadCategories();
         int index = categories.FindIndex(c => c.Name == oldName);

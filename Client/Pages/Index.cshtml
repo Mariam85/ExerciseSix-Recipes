@@ -3,7 +3,7 @@
 @using Microsoft.Extensions.Configuration
 @inject IConfiguration Configuration
 @{
-    ViewData["Title"] = "Home page";
+    ViewData["Title"] = "Simple Recipes";
 }
 <head>
     <script src="//cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -55,10 +55,7 @@
                                         </div>
                                     </div>
                                     <div class="modal-footer">
-                                        <button type="button" x-on:click="this.loggedIn = await loginUser(username,password);document.location.reload(this.loggedIn)" class="btn btn-primary">Login</button>
-                                        <script>
-                                            if (lo)
-                                        </script>
+                                        <button type="button" x-on:click="await loginUser(username,password);" class="btn btn-primary">Login</button>
                                     </div>
                                 </form>
                             </template>
@@ -105,11 +102,13 @@
                             <li class="nav-item">
                                 <a class="nav-link" style="cursor: pointer;" x-on:click="tab = 'categories'">Categories</a>
                             </li>
+                            <li class="nav-item">
+                                <a class="nav-link" style="cursor: pointer;" onclick="logout();">Logout</a>
+                            </li>
                         </ul>
                     </div>
                 </div>
             </nav>
-
             @* Recipes*@
             <div x-show="tab == 'recipes'">
                 <div x-effect="recipes = await $store.recipes;"
@@ -469,11 +468,11 @@
 </body>
 
 <script>
-    window.onload = getToken();
-
     document.addEventListener('alpine:init', () => {
-        Alpine.store('recipes', getRecipes());
-        Alpine.store('cat', getCategories());
+        if (isAuthenticated()==true) {
+            Alpine.store('recipes', getRecipes());
+            Alpine.store('cat', getCategories());
+        }
     });
 
 	async function getToken() {
@@ -502,6 +501,7 @@
             document.getElementById("loginNavLink").classList.remove("active");
         }
     }
+
     // Checking if the user is logged in.
     function isAuthenticated() {
         if (localStorage.token) {
@@ -517,35 +517,35 @@
                     icon: 'error',
                     title: 'Oops...',
                     text: 'Please enter a username and a password',
-                })
+                    confirmButtonColor: '#0275d8'
+                });
                 return false;
         }
         await fetch('@Configuration["Server"]' + 'account/signup?username=' + username + '&password=' + password, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
         }).then((response) => {
-        if (response.status === 200) {
+            if (response.status === 200) {
                 Swal.fire({
-                        icon: 'success',
-                        title: 'User Created',
-                        showConfirmButton: false,
-                        timer: 1500
-                    }).then(() => {
-                        switchNavLogin(true);
-                        return true;
-                    });
-                }
-         else {
-              Swal.fire({
-                       icon: 'error',
-                       title: 'Oops...',
-                       text: 'Failed to create the user!',
-                    });
-              return false;
-              }
-              })
+                    icon: 'success',
+                    title: 'User Created',
+                    confirmButtonColor: '#0275d8'
+                }).then(() => {
+                    return true;
+                });
+            }
+            else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Oops...',
+                    text: 'Failed to create the user!',
+                    confirmButtonColor: '#0275d8'
+                });
+                return false;
+            }
+        });
     }
 
     // Login function.
@@ -555,8 +555,10 @@
                 icon: 'error',
                 title: 'Oops...',
                 text: 'Please enter a password and a username',
-            })
-        return false;
+                confirmButtonColor: '#0275d8'
+            });
+            this.loggedIn = false;
+            return;
         }
         var response = await fetch('@Configuration["Server"]' + 'account/login?username=' + username + '&password=' + password, {
             method: 'POST',
@@ -570,21 +572,44 @@
                     icon: 'error',
                     title: 'Oops...',
                     text: 'Failed to login',
+                    confirmButtonColor: '#0275d8'
                 });
-                return false;
+            this.loggedIn = false;
+            return;
         }
+        const responseJson = await response.json();
         Swal.fire({
                     title: 'Success!',
                     text: 'successfuly logged in!',
                     icon: 'success',
                     confirmButtonColor: '#0275d8'
-        });
-        const responseJson = await response.json();
-        localStorage.setItem('token', responseJson['token']);
-        localStorage.setItem('userName', username);
-        localStorage.setItem('refreshToken', responseJson['refresh']);
-        return true;
+        }).then(
+            function () {
+                localStorage.setItem('token', responseJson['token']);
+                localStorage.setItem('userName', username);
+                localStorage.setItem('refreshToken', responseJson['refresh']);
+                this.loggedIn = true;
+                document.location.reload();
+            });
+    }
 
+    // Logout function
+    function logout() {
+        Swal.fire({
+            title: 'Are you sure you want to logout?',
+            icon: 'warning',
+            showDenyButton: true,
+            confirmButtonText: 'Yes',
+            denyButtonText: `No`,
+            confirmButtonColor: '#0275d8'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                localStorage.setItem('token', '');
+                localStorage.setItem('refreshToken', '');
+                this.loggedIn = false;
+                document.location.reload();
+            }
+        })
     }
 
     // Search functon.
@@ -652,6 +677,10 @@
                 $('#createRecipeModal').modal('hide');
                 Alpine.store('recipes', getRecipes());
             }
+            else if (response.headers.get('is-token-expired')) {
+                await refresh("k");
+                return await addRecipe(recipe);
+            }
             else {
                 Swal.fire({
                     title: 'Could not add recipe!',
@@ -675,7 +704,6 @@
                 break;
             }
         }
-
         // Checking that all the textboxes are filled.
         if (recipe.title.trim().length === 0 || recipe.ingredients.trim().length === 0 || recipe.instructions.trim().length === 0 || recipe.categories.length === 0 || !found) {
             Swal.fire({
@@ -719,6 +747,10 @@
                 });
                 $('#editModal' + recipe.id).modal('hide');
             }
+            else if (response.headers.get('is-token-expired')) {
+                await refresh("k");
+                return await editRecipe(recipe);
+            }
             else {
                 resetRecipe = true;
                 Swal.fire({
@@ -729,9 +761,16 @@
             }
         }
         if (resetRecipe) {
-            const antiforgery = await getToken();
-            let url = '@Configuration["Server"]' + 'recipes/list-recipe/' + recipe.id;
-            let oldRecipe = await fetch(url, {
+            await listRecipe(recipe, recipeDetails);
+        }
+        Alpine.store('recipes', getRecipes());
+    }
+
+    // Listing a recipe.
+    async function listRecipe(recipe,recipeDetails) {
+        const antiforgery = await getToken();
+        let url = '@Configuration["Server"]' + 'recipes/list-recipe/' + recipe.id;
+        let oldRecipe = await fetch(url, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
@@ -739,7 +778,12 @@
                     'Authorization': 'Bearer ' + localStorage.getItem("token"),
                 },
                 credentials: 'include'
-            });
+        });
+        if (oldRecipe.headers.get('is-token-expired')) {
+            await refresh("k");
+            return await listRecipe(recipe, recipeDetails);
+        }
+        else {
             oldRecipe.text().then(function (text) {
                 recipeDetails = JSON.parse(text);
                 recipe.id = recipeDetails.id;
@@ -749,11 +793,10 @@
                 recipe.categories = recipeDetails.categories;
             });
         }
-        Alpine.store('recipes', getRecipes());
     }
 
     // Refresh token.
-    async function refresh() {
+    async function refresh(c) {
         let response = await fetch('@Configuration["Server"]' + 'token/refresh-token/?refreshToken=' + localStorage.getItem("refreshToken"), {
             method: 'POST',
             credentials: 'include',
@@ -762,13 +805,16 @@
             },
         });
         if (!response.ok) {
-            throw 'Can not refresh';
+            if (c == "getCategories")
+                return await getCategories();
+            else if (c == "getRecipes")
+                return await getRecipes();
+            else
+                return;
         }
-      //  if (response != null) {
-            const responseJson = await response.json();
-            localStorage.setItem('refreshToken', responseJson['refresh']);
-            localStorage.setItem('token', responseJson['token']);
-      //  }
+        const responseJson = await response.json();
+        localStorage.setItem('refreshToken', responseJson['refresh']);
+        localStorage.setItem('token', responseJson['token']);
     }
 
     // Listing recipes.
@@ -786,7 +832,7 @@
             return response.json();
         }
         else if (response.headers.get('is-token-expired')) {
-           await refresh();
+           await refresh("getRecipes");
            return await getRecipes();
         }
     }
@@ -806,8 +852,8 @@
             return response.json();
         }
         else if (response.headers.get('is-token-expired')) {
-           await refresh();
-           return await getCategories();
+          await refresh("getCategories");
+          return await getCategories();
         }
     }
 
@@ -831,6 +877,10 @@
                 icon: 'success',
                 confirmButtonColor: '#0275d8'
             })
+        }
+        else if (response.headers.get('is-token-expired')) {
+            await refresh("k");
+            return await deleteRecipe(recipe);
         }
         else {
             Swal.fire({
@@ -866,6 +916,10 @@
             Alpine.store('cat', getCategories());
             Alpine.store('recipes', getRecipes());
         }
+        else if (response.headers.get('is-token-expired')) {
+            await refresh("k");
+            return await removeCategory(oldCategory);
+        }
         else {
             Swal.fire({
                 title: 'No changes are applied!',
@@ -899,33 +953,39 @@
                 }),
                 credentials: 'include'
             })
-            response.text().then(function (text) {
-                if (text.includes("This category already exists")) {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'A category of this name exists...',
-                        text: `please enter a non-existing name`,
-                        confirmButtonColor: '#0275d8'
-                    });
-                }
-                else if (response.ok) {
-                    Swal.fire({
-                        title: 'Success!',
-                        text: category + ' is successfuly added!',
-                        icon: 'success',
-                        confirmButtonColor: '#0275d8'
+            if (response.headers.get('is-token-expired')) {
+                await refresh("k");
+                return await addCategory(category);
+            }
+            else {
+                response.text().then(function (text) {
+                    if (text.includes("This category already exists")) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'A category of this name exists...',
+                            text: `please enter a non-existing name`,
+                            confirmButtonColor: '#0275d8'
+                        });
+                    }
+                    else if (response.ok) {
+                        Swal.fire({
+                            title: 'Success!',
+                            text: category + ' is successfuly added!',
+                            icon: 'success',
+                            confirmButtonColor: '#0275d8'
 
-                    });
-                    Alpine.store('cat', getCategories());
-                }
-                else {
-                    Swal.fire({
-                        title: 'Could not add category!',
-                        icon: 'info',
-                        confirmButtonColor: '#0275d8'
-                    });
-                }
-            });
+                        });
+                        Alpine.store('cat', getCategories());
+                    }
+                    else {
+                        Swal.fire({
+                            title: 'Could not add category!',
+                            icon: 'info',
+                            confirmButtonColor: '#0275d8'
+                        });
+                    }
+                });
+            }
         }
     }
 
@@ -951,41 +1011,47 @@
                 },
                 credentials: 'include'
             });
-            response.text().then(function (text) {
-                if (text.includes("new category name already exists")) {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'A category of this name exists...',
-                        text: `please enter a non-existing name`,
-                        confirmButtonColor: '#0275d8'
-                    });
-                }
-                else if (text.includes("you have entered the same name")) {
-                    Swal.fire({
-                        title: 'No changes are applied!',
-                        text: 'please enter a new name',
-                        icon: 'info',
-                        confirmButtonColor: '#0275d8'
-                    });
-                }
-                else if (response.ok) {
-                    Swal.fire({
-                        title: 'Success!',
-                        text: name + ' is renamed to ' + newName + '!',
-                        icon: 'success',
-                        confirmButtonColor: '#0275d8'
-                    });
-                    Alpine.store('cat', getCategories());
-                    Alpine.store('recipes', getRecipes());
-                }
-                else {
-                    Swal.fire({
-                        title: 'No changes are applied!',
-                        icon: 'info',
-                        confirmButtonColor: '#0275d8'
-                    });
-                }
-            });
+            if (response.headers.get('is-token-expired')) {
+                await refresh("k");
+                return await renameCategory(name, newName);
+            }
+            else {
+                response.text().then(function (text) {
+                    if (text.includes("new category name already exists")) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'A category of this name exists...',
+                            text: `please enter a non-existing name`,
+                            confirmButtonColor: '#0275d8'
+                        });
+                    }
+                    else if (text.includes("you have entered the same name")) {
+                        Swal.fire({
+                            title: 'No changes are applied!',
+                            text: 'please enter a new name',
+                            icon: 'info',
+                            confirmButtonColor: '#0275d8'
+                        });
+                    }
+                    else if (response.ok) {
+                        Swal.fire({
+                            title: 'Success!',
+                            text: name + ' is renamed to ' + newName + '!',
+                            icon: 'success',
+                            confirmButtonColor: '#0275d8'
+                        });
+                        Alpine.store('cat', getCategories());
+                        Alpine.store('recipes', getRecipes());
+                    }
+                    else {
+                        Swal.fire({
+                            title: 'No changes are applied!',
+                            icon: 'info',
+                            confirmButtonColor: '#0275d8'
+                        });
+                    }
+                });
+            }
         }
     }
 </script>
