@@ -67,7 +67,6 @@ IConfiguration config = new ConfigurationBuilder()
     .AddEnvironmentVariables()
     .Build();
 
-builder.Services.AddAntiforgery(options => options.HeaderName = "X-XSRF-TOKEN");
 var MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
 builder.Services.AddCors(options =>
 {
@@ -150,7 +149,7 @@ else
 }
 
 // Logining in endpoint.
-app.MapPost("/account/login", [AllowAnonymous] async (HttpContext contex, IAntiforgery antiforgery, string userName, string password) =>
+app.MapPost("/account/login", [AllowAnonymous] async (string userName, string password) =>
 {
     // Checking if the user exists.
     var index = usersList.FindIndex((u) => u.UserName == userName);
@@ -313,14 +312,6 @@ app.MapPost("/account/signup", [AllowAnonymous] async (string userName, string p
     }
 });
 
-// Generating an antiforgery token.
-app.MapGet("/antiforgery", (IAntiforgery forgeryService, HttpContext context) =>
-{
-    var tokens = forgeryService.GetAndStoreTokens(context);
-    context.Response.Cookies.Append("XSRF-TOKEN", tokens.RequestToken!,
-            new CookieOptions { HttpOnly = false });
-});
-
 // Refreshing the token.
 app.MapPost("token/refresh-token", async (string refreshToken) =>
 {
@@ -369,11 +360,10 @@ app.MapPost("token/refresh-token", async (string refreshToken) =>
 });
 
 // Adding a recipe.
-app.MapPost("recipes/add-recipe", [Authorize] async (Recipe recipe, HttpContext context, IAntiforgery antiforgery) =>
+app.MapPost("recipes/add-recipe", [Authorize] async (Recipe recipe) =>
 {
     try
     {
-        await antiforgery.ValidateRequestAsync(context);
         List<Recipe> recipes = await ReadFile();
         if (recipes.Any())
         {
@@ -390,11 +380,10 @@ app.MapPost("recipes/add-recipe", [Authorize] async (Recipe recipe, HttpContext 
 });
 
 // Editing a recipe.
-app.MapPut("recipes/edit-recipe/{id}", [Authorize] async (Guid id, Recipe editedRecipe, HttpContext context, IAntiforgery antiforgery) =>
+app.MapPut("recipes/edit-recipe/{id}", [Authorize] async (Guid id, Recipe editedRecipe) =>
 {
     try
     {
-        await antiforgery.ValidateRequestAsync(context);
         List<Recipe> recipes = await ReadFile();
         int index = recipes.FindIndex(r => r.Id == id);
         if (index != -1)
@@ -413,11 +402,10 @@ app.MapPut("recipes/edit-recipe/{id}", [Authorize] async (Guid id, Recipe edited
 });
 
 // Listing a recipe.
-app.MapGet("recipes/list-recipe/{id}", [Authorize] async (Guid id, HttpContext context, IAntiforgery antiforgery) =>
+app.MapGet("recipes/list-recipe/{id}", [Authorize] async (Guid id) =>
 {
     try
     {
-        await antiforgery.ValidateRequestAsync(context);
         List<Recipe> recipes = await ReadFile();
         Recipe foundRecipe = recipes.Find(r => r.Id == id);
         if (foundRecipe == null)
@@ -432,11 +420,10 @@ app.MapGet("recipes/list-recipe/{id}", [Authorize] async (Guid id, HttpContext c
 });
 
 // Deleting a recipe.
-app.MapDelete("recipes/delete-recipe/{id}", [Authorize] async (Guid id, HttpContext context, IAntiforgery antiforgery) =>
+app.MapDelete("recipes/delete-recipe/{id}", [Authorize] async (Guid id) =>
 {
     try
     {
-        await antiforgery.ValidateRequestAsync(context);
         List<Recipe> recipes = await ReadFile();
         bool isRemoved = recipes.Remove(recipes.Find(r => r.Id == id));
         if (!isRemoved)
@@ -456,11 +443,10 @@ app.MapDelete("recipes/delete-recipe/{id}", [Authorize] async (Guid id, HttpCont
 });
 
 // Adding a category.
-app.MapPost("recipes/add-category", [Authorize] async (Categories category, HttpContext context, IAntiforgery antiforgery) =>
+app.MapPost("recipes/add-category", [Authorize] async (Categories category) =>
 {
     try
     {
-        await antiforgery.ValidateRequestAsync(context);
         List<Categories> categories = await ReadCategories();
         if (categories.Any())
         {
@@ -488,11 +474,10 @@ app.MapPost("recipes/add-category", [Authorize] async (Categories category, Http
 });
 
 // Renaming a category.
-app.MapPut("categories/rename-category", [Authorize] async (string oldName, string newName, HttpContext context, IAntiforgery antiforgery) =>
+app.MapPut("categories/rename-category", [Authorize] async (string oldName, string newName) =>
 {
     try
     {
-        await antiforgery.ValidateRequestAsync(context);
         if (oldName == newName)
         {
             return Results.BadRequest("you have entered the same name");
@@ -543,11 +528,10 @@ app.MapPut("categories/rename-category", [Authorize] async (string oldName, stri
 });
 
 // Removing a category.
-app.MapDelete("recipes/remove-category/{category}", [Authorize] async (string category, HttpContext context, IAntiforgery antiforgery) =>
+app.MapDelete("recipes/remove-category/{category}", [Authorize] async (string category) =>
 {
     try
     {
-        await antiforgery.ValidateRequestAsync(context);
         // Removing from the categories file.
         List<Categories> categories = await ReadCategories();
         bool isRemoved = categories.Remove(categories.Find(c => c.Name == category));
@@ -591,11 +575,10 @@ app.MapDelete("recipes/remove-category/{category}", [Authorize] async (string ca
 });
 
 // Getting the json file content to display it.
-app.MapGet("recipes", [Authorize] async (HttpContext context, IAntiforgery antiforgery) =>
+app.MapGet("recipes", [Authorize] async () =>
 {
     try
     {
-        await antiforgery.ValidateRequestAsync(context);
         List<Recipe> recipes = await ReadFile();
         return Results.Ok(recipes);
     }
@@ -606,11 +589,10 @@ app.MapGet("recipes", [Authorize] async (HttpContext context, IAntiforgery antif
 });
 
 // Getting the json file content of the categories.
-app.MapGet("categories", [Authorize] async (HttpContext context, IAntiforgery antiforgery) =>
+app.MapGet("categories", [Authorize] async () =>
 {
     try
     {
-        await antiforgery.ValidateRequestAsync(context);
         List<Categories> recipes = await ReadCategories();
         return Results.Ok(recipes);
     }

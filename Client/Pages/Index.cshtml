@@ -492,21 +492,6 @@
         }
     });
 
-	async function getToken() {
-        let response = await fetch('@Configuration["Server"]' + 'antiforgery', {
-			method: "GET",
-			headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('token'),
-			},
-			credentials: 'include'
-		});
-		if (response.ok) {
-			return document.cookie
-				.split("; ")
-				.find(row => row.startsWith("XSRF-TOKEN="))
-				.split("=")[1];
-		}
-	}
 
     function switchNavLogin(login) {
         if (login) {
@@ -710,12 +695,10 @@
             let instructions = recipe.instructions.replaceAll('\n', '').split('• ');
             instructions.shift();
 
-            const antiforgery = await getToken();
             let response = await fetch('@Configuration["Server"]' + 'recipes/add-recipe/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    "X-XSRF-TOKEN": antiforgery,
                     'Authorization': 'Bearer ' + localStorage.getItem("token"),
                 },
                 body: JSON.stringify({
@@ -784,13 +767,11 @@
             let instructions = recipe.instructions.replaceAll('\n', '').split('• ');
             instructions.shift();
 
-            const antiforgery = await getToken();
             let url = '@Configuration["Server"]' + 'recipes/edit-recipe/' + recipe.id;
             let response = await fetch(url, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
-                    "X-XSRF-TOKEN": antiforgery,
                     'Authorization': 'Bearer ' + localStorage.getItem("token"),
                 },
                 body: JSON.stringify({
@@ -832,13 +813,11 @@
 
     // Listing a recipe.
     async function listRecipe(recipe, recipeDetails) {
-        const antiforgery = await getToken();
         let url = '@Configuration["Server"]' + 'recipes/list-recipe/' + recipe.id;
         let oldRecipe = await fetch(url, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
-                "X-XSRF-TOKEN": antiforgery,
                 'Authorization': 'Bearer ' + localStorage.getItem("token"),
             },
             credentials: 'include'
@@ -883,11 +862,9 @@
 
     // Listing recipes.
     async function getRecipes() {
-        var antiforgery = await getToken();
         let response = await fetch('@Configuration["Server"]' + 'recipes', {
             headers: {
                 'Content-Type': 'application/json',
-                "X-XSRF-TOKEN": antiforgery,
                 'Authorization': 'Bearer ' + localStorage.getItem("token"),
             },
             credentials: 'include'
@@ -903,11 +880,9 @@
 
     // Listing categories.
     async function getCategories() {
-        var antiforgery = await getToken();
         let response = await fetch('@Configuration["Server"]' + 'categories', {
             headers: {
                 'Content-Type': 'application/json',
-                "X-XSRF-TOKEN": antiforgery,
                 'Authorization': 'Bearer ' + localStorage.getItem("token"),
             },
             credentials: 'include'
@@ -923,12 +898,10 @@
 
     // Deleting a recipe.
     async function deleteRecipe(recipe) {
-        const antiforgery = await getToken();
         let response = await fetch('@Configuration["Server"]' + 'recipes/delete-recipe/' + recipe, {
             method: 'DELETE',
             headers: {
                 'Content-Type': 'application/json',
-                "X-XSRF-TOKEN": antiforgery,
                 'Authorization': 'Bearer ' + localStorage.getItem("token"),
             },
             credentials: 'include'
@@ -957,14 +930,12 @@
 
     // Deleting a category.
     async function removeCategory(oldCategory) {
-        const antiforgery = await getToken();
         let url = '@Configuration["Server"]' + 'recipes/remove-category/' + oldCategory;
         let response = await fetch(url,
             {
                 method: 'DELETE',
                 headers: {
                     'Content-Type': 'application/json',
-                    "X-XSRF-TOKEN": antiforgery,
                     'Authorization': 'Bearer ' + localStorage.getItem("token"),
                 },
                 credentials: 'include'
@@ -1004,12 +975,10 @@
             })
         }
         else {
-            const antiforgery = await getToken();
             let response = await fetch('@Configuration["Server"]' + 'recipes/add-category/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    "X-XSRF-TOKEN": antiforgery,
                     'Authorization': 'Bearer ' + localStorage.getItem("token"),
                 },
                 body: JSON.stringify({
@@ -1064,13 +1033,11 @@
             })
         }
         else {
-            const antiforgery = await getToken();
             let url = '@Configuration["Server"]' + 'categories/rename-category?oldName=' + name + '&newName=' + newName;
             let response = await fetch(url, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
-                    "X-XSRF-TOKEN": antiforgery,
                     'Authorization': 'Bearer ' + localStorage.getItem("token"),
                 },
                 credentials: 'include'
