@@ -73,11 +73,12 @@ builder.Services.AddCors(options =>
     options.AddPolicy(name: MyAllowSpecificOrigins,
                       policy =>
                       {
-                          policy.WithOrigins(config["Client"])
-            .AllowAnyHeader()
-            .AllowAnyMethod()
-            .WithExposedHeaders("IS-TOKEN-EXPIRED")
-            .AllowCredentials();
+                          policy
+                              .WithOrigins(config["Client"])
+                              .AllowAnyHeader()
+                              .AllowAnyMethod()
+                              .WithExposedHeaders("IS-TOKEN-EXPIRED")
+                              .AllowCredentials();
                       });
 });
 builder.Services.AddControllers();
