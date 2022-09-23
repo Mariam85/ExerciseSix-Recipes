@@ -33,14 +33,14 @@
                             <ul class="nav nav-tabs">
                                 <li class="nav-item">
                                     <a id="loginNavLink" class="nav-link active" aria-current="page" href="#"
-                                       x-on:click="switchNavLogin(true);login=true;">Login</a>
+                                       x-on:click="login=true;">Login</a>
                                 </li>
                                 <li class="nav-item">
                                     <a id="registerNavLink" class="nav-link" href="#"
-                                       x-on:click="switchNavLogin(false);login=false;">Signup</a>
+                                       x-on:click="login=false;">Signup</a>
                                 </li>
                             </ul>
-                            <template x-data={username:'',password:''} x-if="login">
+                            <template x-data="{username:'',password:''}" x-if="login">
                                 <form id="loginForm">
                                     <div id="registerCard" class="card-body" x-show="login">
                                         <h4 class="card-title text-center" style="color:#00008B;">Login</h4>
@@ -59,14 +59,14 @@
                                     </div>
                                 </form>
                             </template>
-                            <template x-data="{usernameRegister:'', passwordRegister:''}" x-if="!login">
-                                <form id="registerForm">
+                            <template x-data="{usernameRegister:'', passwordRegister:''};" x-if="!login">
+                                <form type="post" id="registerForm">
                                     <div id="registerCard" class="card-body" x-show="!login">
                                         <h4 class="card-title text-center" style="color:#00008B;">Signup</h4>
                                         <div class="mb-3">
                                             <label for="usernameInput" class="form-label" style="color:#00008B;">Username</label>
                                             <input x-model="usernameRegister" type="text" class="form-control" id="usernameInput"
-                                                   aria-describedby="usernameHelp" min="1">
+                                                   aria-describedby="usernameHelp" >
                                         </div>
                                         <div class="form-text">
                                             Usernames must have:
@@ -78,7 +78,7 @@
                                         </div>
                                         <div class="mb-3">
                                             <label for="passwordInput" class="form-label" style="color:#00008B;">Password</label>
-                                            <input x-model="passwordRegister" type="password" id="passwordInput" class="form-control">
+                                            <input x-model="passwordRegister" type="password" id="passwordInput" class="form-control" >
                                         </div>
                                         <div class="form-text">
                                             Passwords must have:
@@ -90,9 +90,10 @@
                                                 <li>At least 8 characters</li>
                                             </ul>
                                         </div>
+                                       
                                     </div>
                                     <div class="modal-footer">
-                                        <button type="button" x-on:click="loggedIn = await registerUser(usernameRegister,passwordRegister);" class="btn btn-primary">Signup</button>
+                                        <button id="signupBtn" type="button" x-on:click="await registerUser(usernameRegister,passwordRegister);" class="btn btn-primary">Signup</button>
                                     </div>
                                 </form>
                             </template>
@@ -485,24 +486,14 @@
 </body>
 
 <script>
+
+    
     document.addEventListener('alpine:init', () => {
         if (isAuthenticated() == true) {
             Alpine.store('recipes', getRecipes());
             Alpine.store('cat', getCategories());
         }
     });
-
-
-    function switchNavLogin(login) {
-        if (login) {
-            document.getElementById("loginNavLink").classList.add("active");
-            document.getElementById("registerNavLink").classList.remove("active");
-        }
-        else {
-            document.getElementById("registerNavLink").classList.add("active");
-            document.getElementById("loginNavLink").classList.remove("active");
-        }
-    }
 
     // Checking if the user is logged in.
     function isAuthenticated() {
@@ -521,7 +512,7 @@
                 text: 'Please enter a username and a password',
                 confirmButtonColor: '#0275d8'
             });
-            return false;
+            return;
         }
         let response = await fetch('@Configuration["Server"]' + 'account/signup?username=' + username + '&password=' + password, {
             method: 'POST',
@@ -561,7 +552,9 @@
                     text: 'successfuly created an account!',
                     confirmButtonColor: '#0275d8'
                 }).then(() => {
-                    return true;
+                    // Switching to the login tab.
+                    document.location.reload();
+                    return;
                 });
             }
             else {
