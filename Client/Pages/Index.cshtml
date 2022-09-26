@@ -33,11 +33,11 @@
                             <ul class="nav nav-tabs">
                                 <li class="nav-item">
                                     <a id="loginNavLink" class="nav-link active" aria-current="page" href="#"
-                                       x-on:click="login=true;">Login</a>
+                                       x-on:click="login=true;navigation(true);">Login</a>
                                 </li>
                                 <li class="nav-item">
                                     <a id="registerNavLink" class="nav-link" href="#"
-                                       x-on:click="login=false;">Signup</a>
+                                       x-on:click="login=false;navigation(false);">Signup</a>
                                 </li>
                             </ul>
                             <template x-data="{username:'',password:''}" x-if="login">
@@ -503,6 +503,18 @@
         return false;
     }
 
+    // Navigation function.
+    function navigation(login) {
+        if (login) {
+            document.getElementById("loginNavLink").classList.add("active");
+            document.getElementById("registerNavLink").classList.remove("active");
+        }
+        else {
+            document.getElementById("registerNavLink").classList.add("active");
+            document.getElementById("loginNavLink").classList.remove("active");
+        }
+    }
+
     // Signup function.
     async function registerUser(username, password) {
         if (username.length == 0 || password.length == 0) {
@@ -553,6 +565,7 @@
                     confirmButtonColor: '#0275d8'
                 }).then(() => {
                     // Switching to the login tab.
+                    navigation(true);
                     document.location.reload();
                     return;
                 });
